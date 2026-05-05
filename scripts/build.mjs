@@ -22,6 +22,54 @@ const {
   SLACK_ALERTS_WEBHOOK,
 } = process.env;
 
+// === VFS PEXELS POOL (Patch A2) ===
+const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
+const __VFS_IMG_POOL_CACHE = {};
+async function fetchPexelsPool(branche, cluster, count = 24) {
+  if (!PEXELS_API_KEY) return [];
+  const key = (branche + "|" + cluster).toLowerCase();
+  if (__VFS_IMG_POOL_CACHE[key]) return __VFS_IMG_POOL_CACHE[key];
+  const branchMap = {
+    "physio": "physiotherapy treatment", "physiotherapie": "physiotherapy treatment",
+    "kosmetik": "cosmetic skincare clinic spa", "coiffeur": "hair salon barbershop",
+    "garagist": "car repair garage mechanic", "maler": "interior painter painting",
+    "sanitaer": "plumber bathroom plumbing", "elektriker": "electrician electrical work",
+    "schreiner": "carpenter woodworking workshop", "maurer": "construction mason building",
+    "metallbau": "metalworker welder steel construction", "gartenbau": "landscape gardener garden",
+    "bodenleger": "flooring installer parquet", "optiker": "optician eyewear store",
+    "treuhand": "accountant office consulting", "anwalt": "lawyer office legal",
+    "default": "modern office swiss professional"
+  };
+  const queries = [];
+  for (const [k, v] of Object.entries(branchMap)) {
+    if (branche && branche.toLowerCase().includes(k)) { queries.push(v); break; }
+  }
+  if (queries.length === 0) queries.push(branchMap.default);
+  queries.push(cluster && cluster.toLowerCase().includes("medizin") ? "modern medical clinic interior" : "modern professional swiss interior");
+  const all = [];
+  for (const q of queries) {
+    try {
+      const r = await fetch("https://api.pexels.com/v1/search?per_page=" + Math.ceil(count/queries.length) + "&orientation=landscape&size=large&query=" + encodeURIComponent(q), { headers: { "Authorization": PEXELS_API_KEY } });
+      if (!r.ok) continue;
+      const j = await r.json();
+      for (const p of (j.photos || [])) {
+        all.push({ id: p.id, url: p.src.large2x || p.src.large, alt: (p.alt || q).slice(0, 60), photographer: p.photographer });
+      }
+    } catch (e) { console.log("[pexels] query failed:", q, e.message); }
+  }
+  console.log("[pexels] pool size:", all.length, "for", branche, "/", cluster);
+  __VFS_IMG_POOL_CACHE[key] = all;
+  return all;
+}
+function buildImageWhitelistPrompt(pool) {
+  if (!pool || pool.length === 0) return "";
+  const lines = pool.slice(0, 24).map((p, i) => `[IMG_${i+1}] ${p.url} alt="${p.alt}"`);
+  return `\n\n=== VERFUEGBARE BILDER (PFLICHT-AUSWAHL) ===\nDu MUSST AUSSCHLIESSLICH die folgenden Bild-URLs verwenden. Erfinde KEINE neuen URLs (kein images.unsplash.com, kein erfundenes photo-XXX). Verwende NUR diese Pexels-URLs (und das vom step3 vorgegebene Hero-Bild). Direkt als img src einsetzen, KEIN Cloudinary-Fetch-Wrap noetig (Pexels liefert bereits optimiert):\n${lines.join("\n")}\n=== END BILDER ===\n`;
+}
+// === END VFS PEXELS POOL ===
+
+
+
 if (!MOCKUP_ID) throw new Error('MOCKUP_ID env required');
 
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
@@ -64,6 +112,15 @@ async function step1_cluster(record, scrape) {
 }
 
 async function step2_inspiration(cluster) {
+  // VFS_POOL_HOOK (Patch A2): Pre-fetch Pexels pool for branche+cluster
+  try {
+    if (typeof fetchPexelsPool === "function" && !globalThis.__VFS_PEXELS_POOL) {
+      const _branche = (typeof input === "object" && input && (input.branche || input.kunde_branche)) || (typeof branche !== "undefined" ? branche : "");
+      const _cluster = (typeof input === "object" && input && (input.cluster || input.branche_cluster)) || (typeof cluster !== "undefined" ? cluster : "");
+      globalThis.__VFS_PEXELS_POOL = await fetchPexelsPool(_branche, _cluster, 24);
+      console.log("[Patch A2] Pexels pool ready:", (globalThis.__VFS_PEXELS_POOL || []).length);
+    }
+  } catch(e) { console.log("[Patch A2] pool fetch failed:", e.message); }
   const sys = 'Du bist Awwwards-Juror und Designresearcher. Recherchiere mit web_search Tool 5-8 Best-in-Class-Sites. Queries: "awwwards [branche] site of the day 2026", "[branche] editorial website award winning 2026". Direkte Besuche awwwards.com, fwa.com, cssdesignawards.com, siteinspire.com, godly.website, land-book.com. Plus 2-3 Lottie-Files. Plus Editorial-Typografie-Referenz. Am Ende JSON: {"best_in_class":[{"url":"","name":"","note":"","steal":""}],"fontshare_pairing":"primary + secondary","color_palette":{"primary":"#hex","accent":"#hex","dark":"#hex","light":"#hex","neutral":"#hex"},"lottie_files":["url1","url2"],"design_thesis_refined":"max 25 Worte"}.';
   const usr = 'Cluster: ' + cluster.cluster + ' (' + cluster.cluster_name + ')\nEditorial-Hebung: ' + cluster.editorial_hebung + '\nSignature-Effekt: ' + cluster.signature_name + '\nInitial Design-Thesis: ' + cluster.design_thesis + '\nRecherchiere 5-8 Best-in-Class + Fontshare-Pairing + erdige Color-Palette (Sage statt Gruen, Ochre statt Gelb, Bordeaux statt Rot, Anthrazit statt Schwarz, Off-White statt Weiss) + 2 Lottie-URLs.';
   const txt = await llmWithSearch(sys, usr, 8);
@@ -118,10 +175,25 @@ async function llm(model, system, user, maxTokens = 4000) {
 }
 
 // ─── Code-Fence-Strip (LLM-Output Sanitization) ─────────────────
+
+
+function postProcessUrls(html, pool) {
+  if (!html || !pool || pool.length === 0) return html;
+  // Replace any cloudinary-fetched unsplash-URL or raw unsplash-URL with pool entries
+  let i = 0;
+  return html.replace(/(?:https:\/\/res\.cloudinary\.com\/[^"']*?\/image\/fetch\/[^"']*?)?https?:\/\/images\.unsplash\.com\/[^"']+/g, () => {
+    const p = pool[i % pool.length]; i++;
+    return p.url;
+  });
+}
 function stripCodeFence(s) {
   if (typeof s !== "string") return s;
   let out = s.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "").trim();
   if (out.startsWith("<!DOCTYPE") || out.startsWith("<html")) {
+    // Auto-replace halucinated unsplash with pexels pool
+    if (globalThis.__VFS_PEXELS_POOL && globalThis.__VFS_PEXELS_POOL.length) {
+      out = postProcessUrls(out, globalThis.__VFS_PEXELS_POOL);
+    }
     // Auto-fix Booking-CTAs
     out = out.replace(/<a([^>]*?)href=["']#["']([^>]*?)>([^<]*?(?:Termin|Buchen|Booking|buchen)[^<]*?)<\/a>/gi, '<a$1href="https://calendly.com/valentin-fischer/30min" target="_blank" rel="noopener"$2>$3</a>');
     // IntersectionObserver-Watchdog injizieren
@@ -379,6 +451,8 @@ Pflicht-Sections: Hero, Trust, Service-Cards (3, je 1 Bild), Galerie (4-8 Prospe
 
 13 MOBILE-FIRST PFLICHT: Layout primaer fuer 380px Viewport, dann hochskalieren. Touch-Targets min 48x48px. Keine Hover-only-Interaktion. Hero-Stats horizontal scrollbar bei <500px. Marquee bei <500px reduzierte speed. Navigation als Hamburger bei <768px.
 14 BOOKING-CTA PFLICHT: ALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:". Booking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.
+/* IMG_WHITELIST_INJECT */
+16 IMAGE-WHITELIST: Im System-Prompt findest du eine Liste VERFUEGBARE BILDER. Verwende AUSSCHLIESSLICH diese URLs als <img src>. KEINE images.unsplash.com URLs erfinden. KEIN Cloudinary-fetch-wrap noetig.
 15 SECTION-PFLICHT: 9 Sektionen vorhanden: hero, leistungen, ueber-uns, team, booking, reviews, standort, faq, footer. KEINE darf fehlen.
 Mindestens 10 sichtbare Bilder. Cloudinary-URLs pflicht.
 KEIN Pricing sichtbar.
