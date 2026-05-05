@@ -309,11 +309,71 @@ async function main() {
   console.log(`Scrape ${prospectUrl}`);
   const scrape = await scrapeProspect(prospectUrl);
 
+  // === BUILD V2 PATCH A: Multi-Step Pipeline ===
+  console.log('STEP 1 Cluster');
+  const cluster = await step1_cluster(m, scrape);
+  console.log('  Cluster: ' + cluster.cluster + '/' + cluster.cluster_name + ' | Sig: ' + cluster.signature_name);
+
+  console.log('STEP 2 Inspiration with web_search');
+  const inspiration = await step2_inspiration(cluster);
+  console.log('  Refs: ' + (inspiration.best_in_class || []).length + ' | web_search_calls=' + webSearchCalls);
+
+  console.log('STEP 3 Image-Curation');
+  const curated = await step3_images(cluster, scrape, inspiration);
+  curated.hero_image = cld(curated.hero_image, 2400);
+  curated.section_images = (curated.section_images || []).map(u => cld(u, 1600));
+  curated.team_avatars = (curated.team_avatars || []).map(u => cld(u, 600));
+  // === END MULTI-STEP ===
+
   // Image-Cloudinary-Wrap
   const imgs = (scrape.images || []).slice(0, 8).map(u => cld(u, 1600));
 
   // HTML-Generation via Sonnet 4.6 mit v3.5-Prinzipien
-  const sys = `Du baust einen Premium-Website-Mockup auf Awwwards-Niveau fuer ein Schweizer KMU. Quality-First: Premium-Craftsmanship vor Kompaktheit. Verbose CSS und reiches HTML-Markup sind erwuenscht. Kein Output-Sparen.
+  const sys = `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.
+
+PFLICHT-REGELN: Schweizer Hochdeutsch (ss statt sz), Sie-Form, KEIN Pricing, KEIN Fake-Content, keine Em-Dashes, keine Floskeln. Cluster ${cluster.cluster_name}.
+
+DESIGN-STANDARDS:
+- Mind. 2 Fonts via Fontshare (Editorial-Display + Body) - siehe Pairing unten
+- H1 clamp(3.5rem,9vw,7rem), letter-spacing -0.025em
+- Body 17-18px line-height 1.5-1.6
+- Eyebrow 0.15-0.2em uppercase tracking
+- Color-Palette: primary/accent erdig/dark/light/neutral - siehe unten
+- Mind. 1 Dark-Section pro Seite
+- White-Space mutig (120px section-padding desktop, 80px mobile)
+- Container max-width 1280-1440px
+- Goldener Schnitt fuer 2-Column 1.618:1
+
+LIBRARIES PFLICHT (CDN im Head):
+- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js
+- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js
+- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js
+- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js
+- Fontshare https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap
+
+SIGNATURE-EFFEKT (NUR der vorgegebene): ${cluster.signature_name} - implementiere mit zugehoeriger Library (1 Splat:Three.js+gsplat | 2 WebGL:Curtains.js | 3 Variable-Font:Recursive | 4 Mesh:Whatamesh | 5 Theatre:theatre/core).
+
+PFLICHT-SECTIONS in dieser Reihenfolge:
+1 nav sticky (Logo + Links + CTA + Hamburger Mobile)
+2 #hero mit Signature-Effekt + H1 + Sub + 2 CTAs + Stats
+3 #trust mit Cert-Badges branchenspezifisch (Krankenkassen, Physioswiss, EMR, ESTI, SBV) + Number-Cards
+4 #ueber-uns Story/Person mit Foto + 3 Werte
+5 #leistungen Service-Cards 3-spaltig mit Bild + Tag + Liste, KEIN Pricing
+6 #booking 3-Step Interactive State-Machine (Service -> Stylist -> Slot, Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt)
+7 #team 3-4 Cards Foto 3:4 + Name + Rolle + Specialty
+8 #reviews mind. 6 Testimonials + 5-Sterne + Avatar + Aggregate-Score
+9 #standort 2-Column: Adresse/OEV/Auto/Tel/Mail/Oeffnungszeiten + Google Maps iframe
+10 #faq 5+ Fragen Akkordion branchenspezifisch
+11 #cta + Sticky Mobile CTA bottom-fixed
+12 footer (Adresse, Oeffnung, Rechtliches)
+
+GOOGLE MAPS PFLICHT: <iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>
+
+CHATBOT-WIDGET PFLICHT: Floating-Button bottom-right 60x60 (Primary-Color, Chat-Icon, dezent pulse). Panel bei Klick 380x520 (weiss, Editorial-shadow, slide-up). Header "Chat mit [Brand]" + "Demo - 24/7 vf-services". 4 Chip-Fragen branchenrelevant. Bei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).
+
+JS-PFLICHT: data-reveal Fallback-Timer 1500ms | Sticky-Nav scroll-shrink onScroll | Magnetic-Button-Hover .btn-magnetic | Lenis Smooth-Scroll init | Splitting() init fuer data-splitting | prefers-reduced-motion respektieren.
+
+FORBIDDEN-WORDS: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.
 Schweizer Hochdeutsch, ss statt sz, Sie-Form, keine Em-Dashes.
 Stil-Cluster ableiten aus Branche. Signature-Effekt: 1 von 5 (Splat/WebGL/VariableFont/MeshGradient/Theatre).
 Pflicht-Sections: Hero, Trust, Service-Cards (3, je 1 Bild), Galerie (4-8 Prospect-Bilder Masonry), Booking-Flow (3-Step), Reviews, Maps, FAQ (5+), Footer.
@@ -321,7 +381,7 @@ Mindestens 10 sichtbare Bilder. Cloudinary-URLs pflicht.
 KEIN Pricing sichtbar.
 Tracking-Pixel vor </body>: <img src="${VFS_SUPABASE_URL}/functions/v1/mockup-tracker?m=${MOCKUP_ID}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
 Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
-  const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nImages (Cloudinary): ${imgs.join(', ')}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
+  const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nEditorial-Hebung: ${cluster.editorial_hebung}\nDesign-Thesis: ${inspiration.design_thesis_refined}\nSignature-Effekt: ${cluster.signature_effekt} ${cluster.signature_name}\n\nColor-Palette:\n${Object.entries(inspiration.color_palette || {}).map(([k,v]) => k + ': ' + v).join('\n')}\n\nFontshare-Pairing: ${inspiration.fontshare_pairing}\n\nBest-in-Class-Inspiration:\n${(inspiration.best_in_class || []).slice(0,5).map(b => '- ' + b.name + ': ' + b.steal).join('\n')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
   const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 24000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
