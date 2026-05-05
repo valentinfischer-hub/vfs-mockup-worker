@@ -12,7 +12,7 @@ on:
 
 concurrency:
   group: mockup-${{ github.event.inputs.mockup_id || github.event.client_payload.mockup_id }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
