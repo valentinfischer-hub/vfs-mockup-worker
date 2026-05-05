@@ -67,6 +67,55 @@ function buildImageWhitelistPrompt(pool) {
   return `\n\n=== VERFUEGBARE BILDER (PFLICHT-AUSWAHL) ===\nDu MUSST AUSSCHLIESSLICH die folgenden Bild-URLs verwenden. Erfinde KEINE neuen URLs (kein images.unsplash.com, kein erfundenes photo-XXX). Verwende NUR diese Pexels-URLs (und das vom step3 vorgegebene Hero-Bild). Direkt als img src einsetzen, KEIN Cloudinary-Fetch-Wrap noetig (Pexels liefert bereits optimiert):\n${lines.join("\n")}\n=== END BILDER ===\n`;
 }
 // === END VFS PEXELS POOL ===
+// === VFS_FETCH_INTERCEPTOR (Patch A3) ===
+const __VFS_ORIG_FETCH = globalThis.fetch;
+let __VFS_POOL_PROMISE = null;
+globalThis.fetch = async function(url, opts = {}) {
+  const u = typeof url === "string" ? url : (url && url.url) || "";
+  // Capture branche/cluster from pending_previews response
+  if (u.includes("/rest/v1/pending_previews")) {
+    const r = await __VFS_ORIG_FETCH.call(this, url, opts);
+    try {
+      const cl = r.clone();
+      const j = await cl.json();
+      if (Array.isArray(j) && j[0]) {
+        if (j[0].branche && !globalThis.__VFS_BRANCHE) globalThis.__VFS_BRANCHE = j[0].branche;
+        if (j[0].company && !globalThis.__VFS_BRANCHE) globalThis.__VFS_BRANCHE = j[0].company;
+        if (j[0].branche_cluster) globalThis.__VFS_CLUSTER = j[0].branche_cluster;
+        console.log("[Patch A3] pending_previews captured: branche=", globalThis.__VFS_BRANCHE, "cluster=", globalThis.__VFS_CLUSTER);
+      }
+    } catch(e) {}
+    return r;
+  }
+  // Inject Pool-Whitelist into Anthropic system prompt
+  if (u.includes("api.anthropic.com/v1/messages") && opts.method === "POST" && opts.body) {
+    try {
+      // Lazy-init pool
+      if ((!globalThis.__VFS_PEXELS_POOL || !globalThis.__VFS_PEXELS_POOL.length) && globalThis.__VFS_BRANCHE && typeof fetchPexelsPool === "function") {
+        if (!__VFS_POOL_PROMISE) __VFS_POOL_PROMISE = fetchPexelsPool(globalThis.__VFS_BRANCHE, globalThis.__VFS_CLUSTER || "professional", 24);
+        globalThis.__VFS_PEXELS_POOL = await __VFS_POOL_PROMISE;
+        console.log("[Patch A3] Pool initialized, size:", (globalThis.__VFS_PEXELS_POOL || []).length);
+      }
+      const body = JSON.parse(opts.body);
+      if (body.system && globalThis.__VFS_PEXELS_POOL && globalThis.__VFS_PEXELS_POOL.length) {
+        const inject = (typeof buildImageWhitelistPrompt === "function") ? buildImageWhitelistPrompt(globalThis.__VFS_PEXELS_POOL) : "";
+        if (inject && !body.system.includes("VERFUEGBARE BILDER")) {
+          if (typeof body.system === "string") {
+            body.system = body.system + inject;
+          } else if (Array.isArray(body.system)) {
+            body.system.push({ type: "text", text: inject });
+          }
+          opts = { ...opts, body: JSON.stringify(body) };
+          console.log("[Patch A3] Image-whitelist injected into Anthropic system prompt");
+        }
+      }
+    } catch(e) { console.log("[Patch A3] inject failed:", e.message); }
+  }
+  return __VFS_ORIG_FETCH.call(this, url, opts);
+};
+console.log("[Patch A3] fetch interceptor installed");
+// === END VFS_FETCH_INTERCEPTOR ===
+
 
 
 
@@ -179,12 +228,15 @@ async function llm(model, system, user, maxTokens = 4000) {
 
 function postProcessUrls(html, pool) {
   if (!html || !pool || pool.length === 0) return html;
-  // Replace any cloudinary-fetched unsplash-URL or raw unsplash-URL with pool entries
   let i = 0;
-  return html.replace(/(?:https:\/\/res\.cloudinary\.com\/[^"']*?\/image\/fetch\/[^"']*?)?https?:\/\/images\.unsplash\.com\/[^"']+/g, () => {
-    const p = pool[i % pool.length]; i++;
-    return p.url;
-  });
+  let out = html;
+  // 1) Cloudinary-fetch around URL-encoded unsplash
+  out = out.replace(/https:\/\/res\.cloudinary\.com\/[^/]+\/image\/fetch\/[^"\s']*?https%3A%2F%2Fimages\.unsplash\.com%2F[^"\s')]+/gi, () => { const p = pool[i % pool.length]; i++; return p.url; });
+  // 2) Cloudinary-fetch around plain unsplash
+  out = out.replace(/https:\/\/res\.cloudinary\.com\/[^/]+\/image\/fetch\/[^"\s']*?https?:\/\/images\.unsplash\.com\/[^"\s')]+/gi, () => { const p = pool[i % pool.length]; i++; return p.url; });
+  // 3) Plain unsplash
+  out = out.replace(/https?:\/\/images\.unsplash\.com\/[^"\s')]+/gi, () => { const p = pool[i % pool.length]; i++; return p.url; });
+  return out;
 }
 function stripCodeFence(s) {
   if (typeof s !== "string") return s;
