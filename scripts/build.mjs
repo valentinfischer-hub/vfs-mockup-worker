@@ -83,12 +83,6 @@ async function step3_images(cluster, scrape, inspiration) {
   return JSON.parse(mi[0]);
 }
 
-function stripCodeFence(s) {
-  if (!s) return '';
-  let t = String(s).trim();
-  t = t.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, '').replace(/\n?\s*```\s*$/, '');
-  return t.trim();
-}
 // === END PATCH A HELPERS ===
 
 
