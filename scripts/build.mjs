@@ -119,13 +119,18 @@ async function llm(model, system, user, maxTokens = 4000) {
 
 // ─── Code-Fence-Strip (LLM-Output Sanitization) ─────────────────
 function stripCodeFence(s) {
-  if (!s) return '';
-  let t = String(s).trim();
-  // Remove opening ```html or ``` (with optional language tag)
-  t = t.replace(/^\`\`\`(?:[a-zA-Z]+)?\s*\n?/, '');
-  // Remove closing ```
-  t = t.replace(/\n?\s*\`\`\`\s*$/, '');
-  return t.trim();
+  if (typeof s !== "string") return s;
+  let out = s.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "").trim();
+  if (out.startsWith("<!DOCTYPE") || out.startsWith("<html")) {
+    // Auto-fix Booking-CTAs
+    out = out.replace(/<a([^>]*?)href=["']#["']([^>]*?)>([^<]*?(?:Termin|Buchen|Booking|buchen)[^<]*?)<\/a>/gi, '<a$1href="https://calendly.com/valentin-fischer/30min" target="_blank" rel="noopener"$2>$3</a>');
+    // IntersectionObserver-Watchdog injizieren
+    if (out.includes("</body>") && !out.includes("__VFS_FADE_WATCHDOG__")) {
+      const wd = '<script id="__VFS_FADE_WATCHDOG__">(function(){setTimeout(function(){var els=document.querySelectorAll("[class*=fade-up],[class*=scroll-reveal],[class*=anim-],[class*=reveal],[data-animate]");els.forEach(function(e){var st=getComputedStyle(e);if(parseFloat(st.opacity)<0.1){e.style.opacity="1";e.style.transform="none";e.style.transition="opacity 0.6s ease,transform 0.6s ease";}});},1500);})();<\/script>';
+      out = out.replace("</body>", wd + "</body>");
+    }
+  }
+  return out;
 }
 
 // ─── Slug ────────────────────────────────────────────────────
@@ -371,12 +376,16 @@ FORBIDDEN-WORDS: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend,
 Schweizer Hochdeutsch, ss statt sz, Sie-Form, keine Em-Dashes.
 Stil-Cluster ableiten aus Branche. Signature-Effekt: 1 von 5 (Splat/WebGL/VariableFont/MeshGradient/Theatre).
 Pflicht-Sections: Hero, Trust, Service-Cards (3, je 1 Bild), Galerie (4-8 Prospect-Bilder Masonry), Booking-Flow (3-Step), Reviews, Maps, FAQ (5+), Footer.
+
+13 MOBILE-FIRST PFLICHT: Layout primaer fuer 380px Viewport, dann hochskalieren. Touch-Targets min 48x48px. Keine Hover-only-Interaktion. Hero-Stats horizontal scrollbar bei <500px. Marquee bei <500px reduzierte speed. Navigation als Hamburger bei <768px.
+14 BOOKING-CTA PFLICHT: ALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:". Booking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.
+15 SECTION-PFLICHT: 9 Sektionen vorhanden: hero, leistungen, ueber-uns, team, booking, reviews, standort, faq, footer. KEINE darf fehlen.
 Mindestens 10 sichtbare Bilder. Cloudinary-URLs pflicht.
 KEIN Pricing sichtbar.
 Tracking-Pixel vor </body>: <img src="${VFS_SUPABASE_URL}/functions/v1/mockup-tracker?m=${MOCKUP_ID}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
 Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
   const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nEditorial-Hebung: ${cluster.editorial_hebung}\nDesign-Thesis: ${inspiration.design_thesis_refined}\nSignature-Effekt: ${cluster.signature_effekt} ${cluster.signature_name}\n\nColor-Palette:\n${Object.entries(inspiration.color_palette || {}).map(([k,v]) => k + ': ' + v).join('\n')}\n\nFontshare-Pairing: ${inspiration.fontshare_pairing}\n\nBest-in-Class-Inspiration:\n${(inspiration.best_in_class || []).slice(0,5).map(b => '- ' + b.name + ': ' + b.steal).join('\n')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
-  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 24000));
+  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
   // Seite 2 (vereinfachte Variante)
