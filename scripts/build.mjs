@@ -271,6 +271,16 @@ Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
   const previewUrl = await netlifyDeploy(slug, { 'index.html': finalHtml, 'seite2.html': seite2Html });
   await patchPending(MOCKUP_ID, { build_status: 'deployed', preview_url: previewUrl, preview_url_seite2: previewUrl + 'seite2.html' });
 
+  // REDEPLOY_ONLY-Modus: nach Deploy abbrechen ohne Send (fuer Hot-Fix kaputter Mockups)
+  if (m.build_status === 'redeploy_only') {
+    console.log('REDEPLOY_ONLY mode: skip lighthouse/passes/mail/send');
+    await patchPending(MOCKUP_ID, { build_status: 'redeployed', signal: 'redeploy_only_completed' });
+    if (SLACK_ALERTS_WEBHOOK) {
+      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl}` }) }).catch(()=>{});
+    }
+    return;
+  }
+
   // Lighthouse
   console.log('Run Lighthouse');
   const lh = await runLighthouse(previewUrl);
