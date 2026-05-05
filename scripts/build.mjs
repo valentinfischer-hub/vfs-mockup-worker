@@ -28,6 +28,70 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
 
+// === BUILD V2 PATCH A: Multi-Step Quality-Pipeline ===
+let webSearchCalls = 0;
+
+async function llmWithSearch(system, userPrompt, maxIterations) {
+  maxIterations = maxIterations || 8;
+  const tools = [{ type: 'web_search_20250305', name: 'web_search', max_uses: maxIterations }];
+  let messages = [{ role: 'user', content: userPrompt }];
+  let iter = 0;
+  let lastText = '';
+  while (iter < maxIterations + 2) {
+    const res = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 8000, system, messages, tools });
+    inputTokensTotal += res.usage.input_tokens;
+    outputTokensTotal += res.usage.output_tokens;
+    for (const b of res.content) if (b.type === 'server_tool_use' && b.name === 'web_search') webSearchCalls++;
+    const tb = res.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+    if (tb) lastText = tb;
+    if (res.stop_reason === 'end_turn' || res.stop_reason === 'stop_sequence') return lastText;
+    messages.push({ role: 'assistant', content: res.content });
+    if (res.stop_reason !== 'pause_turn' && res.stop_reason !== 'tool_use') break;
+    iter++;
+  }
+  return lastText;
+}
+
+async function step1_cluster(record, scrape) {
+  const sys = 'Du bist Branchen- und Webdesign-Experte. Bestimme Cluster + Signature-Effekt fuer einen Schweizer KMU.\nCLUSTER: A Editorial/Atelier (Architekt,Galerie,Designstudio) | B Hospitality (Hotel,Restaurant,Cafe) | C Premium-Brand (Manufaktur,Mode,Schmuck) | D Beratung (Coaching,Anwalt,Treuhand) | E Medizin/Wellness (Praxis,Spa,Yoga,Physio) | F Lokales KMU (Coiffeur,Handwerk,Fitness) | G Tech/Digital\nSIGNATURE-EFFEKT (genau einer): 1 Splat (Three.js gsplat - Architektur,Hotel,Atelier) | 2 WebGL-Distortion (Curtains.js - Premium-Brand,Galerie,Designstudio) | 3 Variable-Font Reveal (Recursive - Editorial,Coaching,Verlag) | 4 Mesh-Gradient + Letter-Reveal (Whatamesh+Splitting - Concept-Brand,Tech-Boutique,Beratung) | 5 Theatre.js-Scroll (Hotel,Erlebnismarken,Storytelling)\nOutput JSON nur: {"cluster":"E","cluster_name":"Medizin/Wellness","signature_effekt":3,"signature_name":"Variable-Font Reveal","editorial_hebung":"...","design_thesis":"max 25 Worte"}';
+  const usr = 'Firma: ' + (record.company || '') + '\nBranche: ' + (record.branche || '') + '\nEmail: ' + record.email + '\nReply-Signal: ' + (record.signal || '') + '\nBestehende Site Title: ' + (scrape && scrape.title || '') + '\nHeadlines: ' + ((scrape && scrape.headlines || []).slice(0,3).join(' | '));
+  const r = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 800, system: sys, messages: [{ role: 'user', content: usr }] });
+  inputTokensTotal += r.usage.input_tokens; outputTokensTotal += r.usage.output_tokens;
+  const txt = r.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+  const mm = txt.match(/\{[\s\S]*\}/);
+  if (!mm) throw new Error('step1: no JSON');
+  return JSON.parse(mm[0]);
+}
+
+async function step2_inspiration(cluster) {
+  const sys = 'Du bist Awwwards-Juror und Designresearcher. Recherchiere mit web_search Tool 5-8 Best-in-Class-Sites. Queries: "awwwards [branche] site of the day 2026", "[branche] editorial website award winning 2026". Direkte Besuche awwwards.com, fwa.com, cssdesignawards.com, siteinspire.com, godly.website, land-book.com. Plus 2-3 Lottie-Files. Plus Editorial-Typografie-Referenz. Am Ende JSON: {"best_in_class":[{"url":"","name":"","note":"","steal":""}],"fontshare_pairing":"primary + secondary","color_palette":{"primary":"#hex","accent":"#hex","dark":"#hex","light":"#hex","neutral":"#hex"},"lottie_files":["url1","url2"],"design_thesis_refined":"max 25 Worte"}.';
+  const usr = 'Cluster: ' + cluster.cluster + ' (' + cluster.cluster_name + ')\nEditorial-Hebung: ' + cluster.editorial_hebung + '\nSignature-Effekt: ' + cluster.signature_name + '\nInitial Design-Thesis: ' + cluster.design_thesis + '\nRecherchiere 5-8 Best-in-Class + Fontshare-Pairing + erdige Color-Palette (Sage statt Gruen, Ochre statt Gelb, Bordeaux statt Rot, Anthrazit statt Schwarz, Off-White statt Weiss) + 2 Lottie-URLs.';
+  const txt = await llmWithSearch(sys, usr, 8);
+  const mt = txt.match(/\{[\s\S]*\}/);
+  if (!mt) return { best_in_class: [], fontshare_pairing: 'cabinet-grotesk + satoshi', color_palette: { primary: '#152518', accent: '#5a9468', dark: '#0a1410', light: '#f2f7f3', neutral: '#c98e6a' }, lottie_files: [], design_thesis_refined: cluster.design_thesis };
+  return JSON.parse(mt[0]);
+}
+
+async function step3_images(cluster, scrape, inspiration) {
+  const sys = 'Liefere Image-Plan als JSON. Verwende Unsplash-Photo-IDs Format https://images.unsplash.com/photo-XXXXXX. JSON nur: {"hero_image":"url","section_images":["url",...x8],"team_avatars":["url",...x4]}';
+  const usr = 'Branche: ' + cluster.cluster_name + '\nFirma: ' + ((scrape && scrape.title) || '') + '\nVorhandene Site-Images: ' + ((scrape && scrape.images || []).slice(0,3).join(' | ')) + '\nColor-Akzent: ' + (inspiration.color_palette && inspiration.color_palette.accent || '') + '\n1 Hero, 8 Section, 4 Team-Avatars. NUR JSON.';
+  const r = await anthropic.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
+  inputTokensTotal += r.usage.input_tokens; outputTokensTotal += r.usage.output_tokens;
+  const txt = r.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
+  const mi = txt.match(/\{[\s\S]*\}/);
+  if (!mi) return { hero_image: (scrape && scrape.images && scrape.images[0]) || 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b', section_images: (scrape && scrape.images || []).slice(0,8), team_avatars: [] };
+  return JSON.parse(mi[0]);
+}
+
+function stripCodeFence(s) {
+  if (!s) return '';
+  let t = String(s).trim();
+  t = t.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, '').replace(/\n?\s*```\s*$/, '');
+  return t.trim();
+}
+// === END PATCH A HELPERS ===
+
+
 // ─── Supabase Helpers ────────────────────────────────────────
 async function sb(method, path, body) {
   const res = await fetch(`${VFS_SUPABASE_URL}/rest/v1/${path}`, {
