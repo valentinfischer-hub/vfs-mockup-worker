@@ -1,5 +1,5 @@
-// vfs-mockup-worker · Premium v3.5 Cloud-Builder
-// GitHub Actions Runtime · Node 20+ ESM
+// vfs-mockup-worker Â· Premium v3.5 Cloud-Builder
+// GitHub Actions Runtime Â· Node 20+ ESM
 // Triggered via workflow_dispatch oder repository_dispatch mit mockup_id
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -28,7 +28,7 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
 
-// ─── Supabase Helpers ────────────────────────────────────────
+// âââ Supabase Helpers ââââââââââââââââââââââââââââââââââââââââ
 async function sb(method, path, body) {
   const res = await fetch(`${VFS_SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -48,7 +48,7 @@ async function patchPending(id, fields) {
   return sb('PATCH', `pending_previews?id=eq.${id}`, fields);
 }
 
-// ─── Anthropic Helper ────────────────────────────────────────
+// âââ Anthropic Helper ââââââââââââââââââââââââââââââââââââââââ
 async function llm(model, system, user, maxTokens = 4000) {
   const res = await anthropic.messages.create({
     model, max_tokens: maxTokens, system,
@@ -59,15 +59,15 @@ async function llm(model, system, user, maxTokens = 4000) {
   return res.content?.[0]?.text || '';
 }
 
-// ─── Slug ────────────────────────────────────────────────────
+// âââ Slug ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 function slugify(s) {
   return (s || 'mockup').toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .normalize('NFD').replace(/[Ì-Í¯]/g, '')
+    .replace(/Ã¤/g, 'ae').replace(/Ã¶/g, 'oe').replace(/Ã¼/g, 'ue').replace(/Ã/g, 'ss')
     .replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 }
 
-// ─── Site-Scrape via Puppeteer ───────────────────────────────
+// âââ Site-Scrape via Puppeteer âââââââââââââââââââââââââââââââ
 async function scrapeProspect(url) {
   if (!url) return { title: '', description: '', images: [], textSnippets: [] };
   const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -98,12 +98,12 @@ async function scrapeProspect(url) {
   }
 }
 
-// ─── Cloudinary URL-Builder ──────────────────────────────────
+// âââ Cloudinary URL-Builder ââââââââââââââââââââââââââââââââââ
 function cld(url, w = 1600) {
   return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/f_auto,q_auto,w_${w}/${encodeURIComponent(url)}`;
 }
 
-// ─── Netlify Deploy via Hash-Method ──────────────────────────
+// âââ Netlify Deploy via Hash-Method ââââââââââââââââââââââââââ
 async function netlifyDeploy(slug, htmlMap) {
   const fileMap = {};
   for (const [path, content] of Object.entries(htmlMap)) {
@@ -131,7 +131,7 @@ async function netlifyDeploy(slug, htmlMap) {
   return `https://vf-services-previews.netlify.app/${slug}/`;
 }
 
-// ─── Lighthouse CLI ──────────────────────────────────────────
+// âââ Lighthouse CLI ââââââââââââââââââââââââââââââââââââââââââ
 async function runLighthouse(url) {
   try {
     const { stdout } = await exec('lighthouse', [
@@ -150,7 +150,7 @@ async function runLighthouse(url) {
   }
 }
 
-// ─── 5 Persona-Passes ────────────────────────────────────────
+// âââ 5 Persona-Passes ââââââââââââââââââââââââââââââââââââââââ
 async function runPasses(html, prospect) {
   const passes = {
     pass1_design: { sys: 'Du bist Senior Webdesigner. Bewerte Layout, Typografie, Hierarchie, Whitespace, Hero-Effekt. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20 },
@@ -173,8 +173,8 @@ async function runPasses(html, prospect) {
   return results;
 }
 
-// ─── Instantly Reply ─────────────────────────────────────────
-async function sendInstantlyReply(threadId, body, subject) {
+// âââ Instantly Reply âââââââââââââââââââââââââââââââââââââââââ
+async function sendInstantlyReply(threadId, body, subject, mailCc) {
   if (!INSTANTLY_API_KEY || !threadId) return { sent: false, reason: 'no_key_or_thread' };
   const list = await fetch(`https://api.instantly.ai/api/v2/emails?search=thread:${threadId}&limit=5`, {
     headers: { Authorization: `Bearer ${INSTANTLY_API_KEY}` },
@@ -189,6 +189,7 @@ async function sendInstantlyReply(threadId, body, subject) {
     body: JSON.stringify({
       reply_to_uuid: last.id,
       eaccount: last.to_address_email,
+      cc_address_email_list: mailCc || 'valentin.fischer@vf-services.ch',
       subject: subject || `Re: ${last.subject || 'Ihre Anfrage'}`,
       body, body_html: body,
     }),
@@ -196,7 +197,7 @@ async function sendInstantlyReply(threadId, body, subject) {
   return { sent: reply.ok, status: reply.status };
 }
 
-// ─── Main ────────────────────────────────────────────────────
+// âââ Main ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 async function main() {
   console.log(`[${new Date().toISOString()}] Build-Start mockup_id=${MOCKUP_ID}`);
 
@@ -275,7 +276,7 @@ Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
 
   // Send Reply
   console.log('Send Instantly reply');
-  const sendRes = await sendInstantlyReply(m.thread_id, mailBody, mailSubject);
+  const sendRes = await sendInstantlyReply(m.thread_id, mailBody, mailSubject, m.mail_cc || 'valentin.fischer@vf-services.ch');
 
   // Cost-Log
   const costChf = (inputTokensTotal * 3 + outputTokensTotal * 15) / 1_000_000 * 0.9;
