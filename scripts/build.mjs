@@ -258,12 +258,12 @@ KEIN Pricing sichtbar.
 Tracking-Pixel vor </body>: <img src="${VFS_SUPABASE_URL}/functions/v1/mockup-tracker?m=${MOCKUP_ID}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
 Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
   const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nImages (Cloudinary): ${imgs.join(', ')}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
-  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 8000));
+  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 16000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
   // Seite 2 (vereinfachte Variante)
   const seite2Sys = `${sys}\nFuer Seite 2: branchen-spezifische Unterseite (Leistungen/Team/Portfolio). Selbe Navigation/Footer wie Home.`;
-  const seite2 = stripCodeFence(await llm('claude-sonnet-4-6', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 6000));
+  const seite2 = stripCodeFence(await llm('claude-sonnet-4-6', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 12000));
   const seite2Html = seite2.startsWith('<!DOCTYPE') ? seite2 : `<!DOCTYPE html>\n${seite2}`;
 
   // Deploy
