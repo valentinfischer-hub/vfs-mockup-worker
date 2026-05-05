@@ -1,0 +1,58 @@
+name: Build Mockup (v3.5 Premium)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mockup_id:
+        description: 'pending_previews.id (UUID)'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [build-mockup]
+
+concurrency:
+  group: mockup-${{ github.event.inputs.mockup_id || github.event.client_payload.mockup_id }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      MOCKUP_ID: ${{ github.event.inputs.mockup_id || github.event.client_payload.mockup_id }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NETLIFY_TOKEN: ${{ secrets.NETLIFY_TOKEN }}
+      NETLIFY_PREVIEW_SITE_ID: ${{ secrets.NETLIFY_PREVIEW_SITE_ID }}
+      INSTANTLY_API_KEY: ${{ secrets.INSTANTLY_API_KEY }}
+      VFS_SUPABASE_URL: ${{ secrets.VFS_SUPABASE_URL }}
+      VFS_SUPABASE_SERVICE_KEY: ${{ secrets.VFS_SUPABASE_SERVICE_KEY }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      SLACK_ALERTS_WEBHOOK: ${{ secrets.SLACK_ALERTS_WEBHOOK }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Install Lighthouse CLI
+        run: npm install -g lighthouse
+
+      - name: Build Mockup
+        id: build
+        run: node scripts/build.mjs
+
+      - name: Slack on failure
+        if: failure()
+        run: |
+          curl -X POST -H 'Content-Type: application/json' \
+            -d "{\"text\":\":x: Premium-Cloud-Build fehlgeschlagen fuer mockup_id=$MOCKUP_ID. Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}" \
+            "$SLACK_ALERTS_WEBHOOK" || true
