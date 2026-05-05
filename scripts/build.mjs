@@ -1,5 +1,5 @@
-// vfs-mockup-worker Â· Premium v3.5 Cloud-Builder
-// GitHub Actions Runtime Â· Node 20+ ESM
+// vfs-mockup-worker · Premium v3.5 Cloud-Builder
+// GitHub Actions Runtime · Node 20+ ESM
 // Triggered via workflow_dispatch oder repository_dispatch mit mockup_id
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -28,7 +28,7 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
 
-// âââ Supabase Helpers ââââââââââââââââââââââââââââââââââââââââ
+// ─── Supabase Helpers ────────────────────────────────────────
 async function sb(method, path, body) {
   const res = await fetch(`${VFS_SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -48,7 +48,7 @@ async function patchPending(id, fields) {
   return sb('PATCH', `pending_previews?id=eq.${id}`, fields);
 }
 
-// âââ Anthropic Helper ââââââââââââââââââââââââââââââââââââââââ
+// ─── Anthropic Helper ────────────────────────────────────────
 async function llm(model, system, user, maxTokens = 4000) {
   const res = await anthropic.messages.create({
     model, max_tokens: maxTokens, system,
@@ -59,15 +59,15 @@ async function llm(model, system, user, maxTokens = 4000) {
   return res.content?.[0]?.text || '';
 }
 
-// âââ Slug ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── Slug ────────────────────────────────────────────────────
 function slugify(s) {
   return (s || 'mockup').toLowerCase()
-    .normalize('NFD').replace(/[Ì-Í¯]/g, '')
-    .replace(/Ã¤/g, 'ae').replace(/Ã¶/g, 'oe').replace(/Ã¼/g, 'ue').replace(/Ã/g, 'ss')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
     .replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
 }
 
-// âââ Site-Scrape via Puppeteer âââââââââââââââââââââââââââââââ
+// ─── Site-Scrape via Puppeteer ───────────────────────────────
 async function scrapeProspect(url) {
   if (!url) return { title: '', description: '', images: [], textSnippets: [] };
   const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
@@ -98,12 +98,12 @@ async function scrapeProspect(url) {
   }
 }
 
-// âââ Cloudinary URL-Builder ââââââââââââââââââââââââââââââââââ
+// ─── Cloudinary URL-Builder ──────────────────────────────────
 function cld(url, w = 1600) {
   return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/fetch/f_auto,q_auto,w_${w}/${encodeURIComponent(url)}`;
 }
 
-// âââ Netlify Deploy via Hash-Method ââââââââââââââââââââââââââ
+// ─── Netlify Deploy via Hash-Method ──────────────────────────
 async function netlifyDeploy(slug, htmlMap) {
   const fileMap = {};
   for (const [path, content] of Object.entries(htmlMap)) {
@@ -131,7 +131,7 @@ async function netlifyDeploy(slug, htmlMap) {
   return `https://vf-services-previews.netlify.app/${slug}/`;
 }
 
-// âââ Lighthouse CLI ââââââââââââââââââââââââââââââââââââââââââ
+// ─── Lighthouse CLI ──────────────────────────────────────────
 async function runLighthouse(url) {
   try {
     const { stdout } = await exec('lighthouse', [
@@ -150,7 +150,7 @@ async function runLighthouse(url) {
   }
 }
 
-// âââ 5 Persona-Passes ââââââââââââââââââââââââââââââââââââââââ
+// ─── 5 Persona-Passes ────────────────────────────────────────
 async function runPasses(html, prospect) {
   const passes = {
     pass1_design: { sys: 'Du bist Senior Webdesigner. Bewerte Layout, Typografie, Hierarchie, Whitespace, Hero-Effekt. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20 },
@@ -173,7 +173,7 @@ async function runPasses(html, prospect) {
   return results;
 }
 
-// âââ Instantly Reply âââââââââââââââââââââââââââââââââââââââââ
+// ─── Instantly Reply ─────────────────────────────────────────
 async function sendInstantlyReply(threadId, body, subject, mailCc) {
   if (!INSTANTLY_API_KEY || !threadId) return { sent: false, reason: 'no_key_or_thread' };
   const list = await fetch(`https://api.instantly.ai/api/v2/emails?search=thread:${threadId}&limit=5`, {
@@ -197,7 +197,7 @@ async function sendInstantlyReply(threadId, body, subject, mailCc) {
   return { sent: reply.ok, status: reply.status };
 }
 
-// âââ Main ââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ─── Main ────────────────────────────────────────────────────
 async function main() {
   console.log(`[${new Date().toISOString()}] Build-Start mockup_id=${MOCKUP_ID}`);
 
