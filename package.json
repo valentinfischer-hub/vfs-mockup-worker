@@ -1,0 +1,15 @@
+{
+  "name": "vfs-mockup-worker",
+  "version": "1.0.0",
+  "description": "Premium-Cloud-Worker fuer vfs v3.5 Mockup-Builds",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.30.1",
+    "puppeteer": "^23.10.0"
+  },
+  "engines": { "node": ">=20" }
+}
