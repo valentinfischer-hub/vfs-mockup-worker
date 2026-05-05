@@ -59,6 +59,17 @@ async function llm(model, system, user, maxTokens = 4000) {
   return res.content?.[0]?.text || '';
 }
 
+// ─── Code-Fence-Strip (LLM-Output Sanitization) ─────────────────
+function stripCodeFence(s) {
+  if (!s) return '';
+  let t = String(s).trim();
+  // Remove opening ```html or ``` (with optional language tag)
+  t = t.replace(/^\`\`\`(?:[a-zA-Z]+)?\s*\n?/, '');
+  // Remove closing ```
+  t = t.replace(/\n?\s*\`\`\`\s*$/, '');
+  return t.trim();
+}
+
 // ─── Slug ────────────────────────────────────────────────────
 function slugify(s) {
   return (s || 'mockup').toLowerCase()
@@ -247,12 +258,12 @@ KEIN Pricing sichtbar.
 Tracking-Pixel vor </body>: <img src="${VFS_SUPABASE_URL}/functions/v1/mockup-tracker?m=${MOCKUP_ID}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
 Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
   const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nImages (Cloudinary): ${imgs.join(', ')}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
-  const html = await llm('claude-sonnet-4-6', sys, usr, 8000);
+  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 8000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
   // Seite 2 (vereinfachte Variante)
   const seite2Sys = `${sys}\nFuer Seite 2: branchen-spezifische Unterseite (Leistungen/Team/Portfolio). Selbe Navigation/Footer wie Home.`;
-  const seite2 = await llm('claude-sonnet-4-6', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 6000);
+  const seite2 = stripCodeFence(await llm('claude-sonnet-4-6', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 6000));
   const seite2Html = seite2.startsWith('<!DOCTYPE') ? seite2 : `<!DOCTYPE html>\n${seite2}`;
 
   // Deploy
@@ -271,7 +282,7 @@ Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
   // Mail-Body
   const mailSys = `Schweizer Hochdeutsch ss statt sz, Sie-Form, keine Em-Dashes, keine Floskeln. Du schreibst eine kurze HTML-Mail (max 80 Worte) als Valentin Fischer von vf-services. Inhalt: kurzer konkreter Bezug auf Reply-Signal, Vorschau-Link einbetten, Calendly-Link <a href='https://calendly.com/valentin-fischer-vf-services/30min'>Termin vereinbaren</a> anbieten. Output: NUR HTML-Body, keine Subject, kein DOCTYPE.`;
   const mailUsr = `Firma: ${company}\nVorname: ${firstName}\nVorschau: ${previewUrl}\nSeite 2: ${previewUrl}seite2.html\nReply-Signal: ${m.signal || ''}`;
-  const mailBody = await llm('claude-sonnet-4-6', mailSys, mailUsr, 600);
+  const mailBody = stripCodeFence(await llm('claude-sonnet-4-6', mailSys, mailUsr, 600));
   const mailSubject = `Ihre Website als Vorschau, ${firstName || company}`;
 
   // Send Reply
