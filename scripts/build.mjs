@@ -115,6 +115,28 @@ globalThis.fetch = async function(url, opts = {}) {
 };
 console.log("[Patch A3] fetch interceptor installed");
 // === END VFS_FETCH_INTERCEPTOR ===
+// === A4_EAGER_INIT (Top-level Pool Init) ===
+try {
+  const _MOCKUP_ID = process.env.MOCKUP_ID;
+  if (_MOCKUP_ID && typeof fetchPexelsPool === "function" && typeof VFS_SUPABASE_URL === "string" && typeof VFS_SUPABASE_SERVICE_KEY === "string") {
+    const _sUrl = VFS_SUPABASE_URL + "/rest/v1/pending_previews?id=eq." + encodeURIComponent(_MOCKUP_ID) + "&select=*";
+    const _r = await __VFS_ORIG_FETCH(_sUrl, { headers: { "apikey": VFS_SUPABASE_SERVICE_KEY, "Authorization": "Bearer " + VFS_SUPABASE_SERVICE_KEY } });
+    if (_r.ok) {
+      const _arr = await _r.json();
+      const _rec = Array.isArray(_arr) ? _arr[0] : null;
+      if (_rec) {
+        const _branche = _rec.branche || _rec.company || "";
+        const _cluster = _rec.branche_cluster || "";
+        globalThis.__VFS_BRANCHE = _branche;
+        globalThis.__VFS_CLUSTER = _cluster;
+        globalThis.__VFS_PEXELS_POOL = await fetchPexelsPool(_branche, _cluster, 24);
+        console.log("[A4 eager-init] pool ready:", (globalThis.__VFS_PEXELS_POOL || []).length, "branche:", _branche, "cluster:", _cluster);
+      } else { console.log("[A4 eager-init] no pending_previews record for id:", _MOCKUP_ID); }
+    } else { console.log("[A4 eager-init] supabase fetch failed:", _r.status); }
+  } else { console.log("[A4 eager-init] missing prerequisites - MOCKUP_ID:", !!_MOCKUP_ID, "fetchPexelsPool:", typeof fetchPexelsPool, "VFS_SUPABASE_URL:", typeof VFS_SUPABASE_URL); }
+} catch (e) { console.log("[A4 eager-init] failed:", e.message); }
+// === END A4_EAGER_INIT ===
+
 
 
 
