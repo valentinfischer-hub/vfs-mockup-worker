@@ -1490,7 +1490,7 @@ async function main() {
   console.log('STEP 4 V35-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
   const sys = buildV35SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL);
   const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
-  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
+  const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 32000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
   // Seite 2 (vereinfachte Variante)
@@ -1507,7 +1507,7 @@ async function main() {
   let visualResult = await visualVerify(previewUrl, profile, { company, branche });
   let iterCount = 0;
   const ITER_THRESHOLD = 75;
-  const ITER_MAX = 2;
+  const ITER_MAX = 1; // V35.5.1: 2->1 (Performance, max 1 Iter)
   let currentHtml = finalHtml;
   while (visualResult.total !== null && visualResult.total < ITER_THRESHOLD && iterCount < ITER_MAX) {
     iterCount++;
