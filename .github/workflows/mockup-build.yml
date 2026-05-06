@@ -31,6 +31,7 @@ jobs:
       VFS_SUPABASE_SERVICE_KEY: ${{ secrets.VFS_SUPABASE_SERVICE_KEY }}
       CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
       SLACK_ALERTS_WEBHOOK: ${{ secrets.SLACK_ALERTS_WEBHOOK }}
+      REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
 
     steps:
       - name: Checkout
