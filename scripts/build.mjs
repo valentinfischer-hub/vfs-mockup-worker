@@ -1503,27 +1503,7 @@ async function main() {
   const previewUrl = await netlifyDeploy(slug, { 'index.html': finalHtml, 'seite2.html': seite2Html });
   await patchPending(MOCKUP_ID, { build_status: 'deployed', preview_url: previewUrl, preview_url_seite2: previewUrl + 'seite2.html' });
 
-  // REDEPLOY_ONLY-Modus: nach Deploy abbrechen ohne Send (fuer Hot-Fix kaputter Mockups)
-  // V35.2: Final-PATCH-Felder MIT patchen (sonst zeigt DB alte V34-Werte fuer Test-Builds)
-  if (m.build_status === 'redeploy_only') {
-    console.log('REDEPLOY_ONLY mode: skip lighthouse/passes/mail/send');
-    await patchPending(MOCKUP_ID, {
-      build_status: 'redeployed',
-      signal: 'redeploy_only_completed',
-      preview_url: previewUrl,
-      preview_url_seite2: previewUrl + 'seite2.html',
-      branche_cluster: profile.slug,
-      signature_effect: profile.signature_name,
-      design_thesis: 'V35.5 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
-      prompt_version: 'v35_5_visual_verify_iter_2026-05-06',
-    });
-    if (SLACK_ALERTS_WEBHOOK) {
-      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl} | profile=${profile.slug} auth=${(globalThis.__VFS_AUTHENTIC_POOL||[]).length} ai=${(globalThis.__VFS_AI_POOL||[]).length}` }) }).catch(()=>{});
-    }
-    return;
-  }
-
-  // V35.5 Patch B: Visual-Verify + Patch C: Iter-Loop
+  // V35.5 Patch B: Visual-Verify + Patch C: Iter-Loop (laufen AUCH bei REDEPLOY_ONLY damit Test-Builds Score sehen)
   let visualResult = await visualVerify(previewUrl, profile, { company, branche });
   let iterCount = 0;
   const ITER_THRESHOLD = 75;
@@ -1551,6 +1531,30 @@ async function main() {
     if (SLACK_ALERTS_WEBHOOK) {
       await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: ':warning: Mockup ' + company + ' (' + slug + ') unter Visual-Threshold nach ' + iterCount + ' Iter. Score: ' + visualResult.total + '/' + visualResult.max + ' Preview: ' + previewUrl }) }).catch(()=>{});
     }
+  }
+
+  // REDEPLOY_ONLY-Modus: nach Visual-Verify+Iter abbrechen ohne Lighthouse/Mail/Send
+  if (m.build_status === 'redeploy_only') {
+    const _visualPasses = {};
+    _visualPasses.visual_verify_total = visualResult.total !== null ? (visualResult.total + '/' + visualResult.max) : 'n/a';
+    for (const [k, v] of Object.entries(visualResult.passes || {})) _visualPasses['visual_' + k] = v;
+    _visualPasses.iter_count = iterCount;
+    console.log('REDEPLOY_ONLY: skip lighthouse/runPasses/mail/send, save Visual-Verify');
+    await patchPending(MOCKUP_ID, {
+      build_status: 'redeployed',
+      signal: 'redeploy_only_completed_with_visual_verify',
+      preview_url: previewUrl,
+      preview_url_seite2: previewUrl + 'seite2.html',
+      branche_cluster: profile.slug,
+      signature_effect: profile.signature_name,
+      design_thesis: 'V35.5 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none') + ' / visual=' + (visualResult.total || 'n/a') + '/' + (visualResult.max || '?') + ' iter=' + iterCount,
+      prompt_version: 'v35_5_visual_verify_iter_2026-05-06',
+      pass_scores: _visualPasses,
+    });
+    if (SLACK_ALERTS_WEBHOOK) {
+      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: ':wrench: Redeploy-only fertig: ' + previewUrl + ' | visual=' + (visualResult.total || 'n/a') + '/' + (visualResult.max || '?') + ' iter=' + iterCount }) }).catch(()=>{});
+    }
+    return;
   }
 
   // Lighthouse
