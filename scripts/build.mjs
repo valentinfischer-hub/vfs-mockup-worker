@@ -810,8 +810,8 @@ try {
 
 if (!MOCKUP_ID) throw new Error('MOCKUP_ID env required');
 
-// V35.5.3: maxRetries 2->4, explicit Request-Timeout 5min gegen ConnectionTimeout/ConnectionError
-const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 4, timeout: 5 * 60 * 1000 });
+// V37.2: maxRetries 4, explicit Request-Timeout 10min (war 5min) — Opus 4.7 mit 32k tokens kann bis 8 Min dauern
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 4, timeout: 10 * 60 * 1000 });
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
 
