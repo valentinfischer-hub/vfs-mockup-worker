@@ -1387,15 +1387,16 @@ OUTPUT: NUR komplettes finales HTML ab <!DOCTYPE html>. Keine Erklaerungen. Kein
 
   const usr = 'Firma: ' + prospect.company + '\nBranche: ' + prospect.branche + '\n\nFINALE HTML zum reviewen + fixen:\n\n' + html;
   try {
-    const fixed = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
+    // V36.9: Opus 4.7 fuer Final-Pass (Premium-Quality), max_tokens 24k => Cap ~1.65 CHF
+    const fixed = stripCodeFence(await llm('claude-opus-4-7', sys, usr, 24000));
     if (fixed && fixed.length > 5000 && fixed.startsWith('<!DOCTYPE')) {
-      console.log('  ✓ Final-Pass fixed: ' + fixed.length + ' chars (input was ' + html.length + ')');
+      console.log('  ✓ Final-Pass (Opus 4.7) fixed: ' + fixed.length + ' chars (input was ' + html.length + ')');
       return fixed;
     }
     console.log('  ⚠ Final-Pass output too short or invalid, keeping original');
     return html;
   } catch (e) {
-    console.log('  ✗ Final-Pass failed: ' + e.message + ', keeping original');
+    console.log('  ✗ Final-Pass (Opus 4.7) failed: ' + e.message + ', keeping original');
     return html;
   }
 }
