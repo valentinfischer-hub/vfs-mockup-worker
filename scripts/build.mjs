@@ -639,8 +639,32 @@ async function patchPending(id, fields) {
   return sb('PATCH', `pending_previews?id=eq.${id}`, fields);
 }
 
-// ─── Anthropic Helper ────────────────────────────────────────
+// ─── Anthropic Helper (V36.4: Auto-Streaming für lange Outputs) ─────
 async function llm(model, system, user, maxTokens = 4000) {
+  // V36.4: Streaming aktivieren für lange Outputs (>16k tokens) → robust gegen Connection-Drops
+  if (maxTokens > 16000) {
+    try {
+      const stream = anthropic.messages.stream({
+        model, max_tokens: maxTokens, system,
+        messages: [{ role: 'user', content: user }],
+      });
+      // Optional: Streaming-Progress in Logs (alle 5k Tokens)
+      let lastLog = 0;
+      stream.on('text', (delta, snapshot) => {
+        if (snapshot.length - lastLog > 5000) {
+          console.log('[stream ' + model.slice(7, 13) + '] ' + snapshot.length + ' chars');
+          lastLog = snapshot.length;
+        }
+      });
+      const final = await stream.finalMessage();
+      inputTokensTotal += final.usage.input_tokens;
+      outputTokensTotal += final.usage.output_tokens;
+      return final.content?.[0]?.text || '';
+    } catch (e) {
+      console.log('[llm-stream] error, fallback to .create():', e.message);
+      // Fall-through zu non-streaming
+    }
+  }
   const res = await anthropic.messages.create({
     model, max_tokens: maxTokens, system,
     messages: [{ role: 'user', content: user }],
@@ -1493,14 +1517,16 @@ async function main() {
   console.log('STEP 4 V35-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
   const sys = buildV35SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL);
   const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
-  // V36.3: 2-Variants generieren (parallel) + Winner-Pick via Sonnet
-  console.log('STEP 5 V36.3 2-Variants HTML-Gen + Winner-Pick');
+  // V36.4: 2-Variants generieren SEQUENZIELL (statt parallel) + Winner-Pick via Sonnet
+  console.log('STEP 5 V36.4 2-Variants Sequenziell HTML-Gen + Winner-Pick');
   const variantUsrA = usr + '\n\nVARIANT-DIREKTIVE: Editorial-Magazin-Stil. Asymm-Splits 70/30. Hero mit grosser Italic-Quote.';
   const variantUsrB = usr + '\n\nVARIANT-DIREKTIVE: Premium-Brand-Stil. Center-Stage-Hero. Mehr Whitespace. Marquee-Ribbon.';
-  const [htmlA, htmlB] = await Promise.all([
-    llm('claude-sonnet-4-6', sys, variantUsrA, 48000).then(stripCodeFence).catch(e => { console.log('[variant A] failed:', e.message); return null; }),
-    llm('claude-sonnet-4-6', sys, variantUsrB, 48000).then(stripCodeFence).catch(e => { console.log('[variant B] failed:', e.message); return null; }),
-  ]);
+  let htmlA = null, htmlB = null;
+  console.log('  → Variant A starting (streaming)...');
+  try { htmlA = stripCodeFence(await llm('claude-sonnet-4-6', sys, variantUsrA, 48000)); console.log('  ✓ Variant A: ' + (htmlA?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant A failed: ' + e.message); }
+  await new Promise(r => setTimeout(r, 3000)); // 3s sleep zwischen Variants (Rate-Limit-Schutz)
+  console.log('  → Variant B starting (streaming)...');
+  try { htmlB = stripCodeFence(await llm('claude-sonnet-4-6', sys, variantUsrB, 48000)); console.log('  ✓ Variant B: ' + (htmlB?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant B failed: ' + e.message); }
   let html;
   if (htmlA && htmlB) {
     // Sonnet pickt Winner basierend auf Profile-Fit
