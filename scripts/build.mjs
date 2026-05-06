@@ -29,7 +29,7 @@ const {
   MOCKUP_ID,
   ANTHROPIC_API_KEY,
   NETLIFY_TOKEN,
-  NETLIFY_PREVIEW_SITE_ID = '78324fe7-6075-4d03-8a8b-8500efc2ade0',
+  NETLIFY_PREVIEW_SITE_ID = '0c9138f4-3d5a-4a8e-a8a4-bd0cd735d6f7',
   INSTANTLY_API_KEY,
   VFS_SUPABASE_URL = 'https://kvtmkabkmouzljhsxgir.supabase.co',
   VFS_SUPABASE_SERVICE_KEY,
@@ -1179,7 +1179,7 @@ async function netlifyDeploy(slug, htmlMap) {
       if (!put.ok) console.warn(`PUT ${fullPath} ${put.status}`);
     }
   }
-  return `https://vf-services-previews.netlify.app/${slug}/`;
+  return `https://vf-services-mockups.netlify.app/${slug}/`;
 }
 
 // ─── Lighthouse CLI ──────────────────────────────────────────
