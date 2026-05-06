@@ -581,10 +581,27 @@ async function step2_inspiration(cluster) {
   } catch(e) { console.log("[Patch A2] pool fetch failed:", e.message); }
   const sys = 'Du bist Awwwards-Juror und Designresearcher. Recherchiere mit web_search Tool 5-8 Best-in-Class-Sites. Queries: "awwwards [branche] site of the day 2026", "[branche] editorial website award winning 2026". Direkte Besuche awwwards.com, fwa.com, cssdesignawards.com, siteinspire.com, godly.website, land-book.com. Plus 2-3 Lottie-Files. Plus Editorial-Typografie-Referenz. Am Ende JSON: {"best_in_class":[{"url":"","name":"","note":"","steal":""}],"fontshare_pairing":"primary + secondary","color_palette":{"primary":"#hex","accent":"#hex","dark":"#hex","light":"#hex","neutral":"#hex"},"lottie_files":["url1","url2"],"design_thesis_refined":"max 25 Worte"}.';
   const usr = 'Cluster: ' + cluster.cluster + ' (' + cluster.cluster_name + ')\nEditorial-Hebung: ' + cluster.editorial_hebung + '\nSignature-Effekt: ' + cluster.signature_name + '\nInitial Design-Thesis: ' + cluster.design_thesis + '\nRecherchiere 5-8 Best-in-Class + Fontshare-Pairing + erdige Color-Palette (Sage statt Gruen, Ochre statt Gelb, Bordeaux statt Rot, Anthrazit statt Schwarz, Off-White statt Weiss) + 2 Lottie-URLs.';
-  const txt = await llmWithSearch(sys, usr, 8);
+  const fallback = { best_in_class: [], fontshare_pairing: 'cabinet-grotesk + satoshi', color_palette: { primary: '#152518', accent: '#5a9468', dark: '#0a1410', light: '#f2f7f3', neutral: '#c98e6a' }, lottie_files: [], design_thesis_refined: cluster.design_thesis };
+  let txt = '';
+  try { txt = await llmWithSearch(sys, usr, 8); } catch (e) { console.log('[step2] llmWithSearch failed:', e.message); return fallback; }
+  // V35.3: Robuster JSON-Parse mit balanced-brace + try/catch
   const mt = txt.match(/\{[\s\S]*\}/);
-  if (!mt) return { best_in_class: [], fontshare_pairing: 'cabinet-grotesk + satoshi', color_palette: { primary: '#152518', accent: '#5a9468', dark: '#0a1410', light: '#f2f7f3', neutral: '#c98e6a' }, lottie_files: [], design_thesis_refined: cluster.design_thesis };
-  return JSON.parse(mt[0]);
+  if (!mt) { console.log('[step2] no JSON braces, fallback'); return fallback; }
+  try {
+    return JSON.parse(mt[0]);
+  } catch (e) {
+    // Repair-Versuch: trailing comma entfernen, dann erneut
+    try {
+      const repaired = mt[0]
+        .replace(/,(\s*[}\]])/g, '$1')      // trailing commas
+        .replace(/[“”]/g, '"')   // smart quotes → straight
+        .replace(/[‘’]/g, "'");
+      return JSON.parse(repaired);
+    } catch (e2) {
+      console.log('[step2] JSON.parse failed even after repair, fallback. Snippet:', mt[0].slice(0, 200));
+      return fallback;
+    }
+  }
 }
 
 async function step3_images(cluster, scrape, inspiration) {
