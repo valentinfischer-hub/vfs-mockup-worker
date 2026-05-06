@@ -1224,6 +1224,105 @@ async function runPasses(html, prospect) {
   return results;
 }
 
+// ─── V35.5 Patch B: Visual-Verify (Puppeteer-Screenshot + 5 Persona-Reviews mit Image-Input) ───
+async function screenshotPreview(previewUrl, viewport) {
+  const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+  try {
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+    await page.setViewport(viewport);
+    await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 30_000 }).catch(() => {});
+    // Allow scroll-triggered animations to finish + lazy-load
+    await page.evaluate(async () => {
+      await new Promise(r => {
+        let total = 0; const t = setInterval(() => {
+          window.scrollBy(0, 400); total += 400;
+          if (total >= document.body.scrollHeight) { clearInterval(t); r(); }
+        }, 60);
+        setTimeout(() => { clearInterval(t); r(); }, 4000);
+      });
+    });
+    await new Promise(r => setTimeout(r, 1500));
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await new Promise(r => setTimeout(r, 600));
+    const buf = await page.screenshot({ type: 'jpeg', quality: 75, fullPage: true });
+    return buf.toString('base64');
+  } catch (e) {
+    console.log('[V35.5 screenshot]', e.message);
+    return null;
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
+async function visualVerify(previewUrl, profile, prospect) {
+  console.log('V35.5 STEP B Visual-Verify start');
+  const desktopShot = await screenshotPreview(previewUrl, { width: 1440, height: 900 });
+  const mobileShot = await screenshotPreview(previewUrl, { width: 380, height: 812, isMobile: true });
+  if (!desktopShot && !mobileShot) {
+    console.log('  both screenshots failed, skip visual-verify');
+    return { total: null, passes: {}, notes: 'screenshots-failed' };
+  }
+  console.log('  screenshots ok desktop=' + (desktopShot ? Math.round(desktopShot.length/1024) + 'kb' : 'fail') + ' mobile=' + (mobileShot ? Math.round(mobileShot.length/1024) + 'kb' : 'fail'));
+
+  const passes = {
+    pass1_visual_design: { sys: 'Du bist Senior Webdesigner. Bewerte Layout/Hierarchie/Whitespace/Hero/Bento-Grid/asymm-Splits an dieser Premium-KMU-Website. Score 0-30. JSON: {"score":n,"notes":"..."}', max: 30, image: desktopShot },
+    pass2_mobile_ux: { sys: 'Du bist Mobile-UX-Experte. Bewerte Mobile-380px-Layout: Touch-Targets >=48px, Hamburger-Nav, Sticky-CTA-Bar, Service-Cards stapelbar, Hero-Stats-Scroll. Score 0-25. JSON: {"score":n,"notes":"..."}', max: 25, image: mobileShot },
+    pass3_typo_hierarchy: { sys: 'Du bist Typografie-Experte. Bewerte Display-Font/Body-Font-Pairing, H1-clamp, Variable-Font-Reveal-Animation, Eyebrow-Letterspacing, Italic-Quotes. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20, image: desktopShot },
+    pass4_cta_visibility: { sys: 'Du bist Conversion-Experte. Bewerte Termin-Buttons (sichtbar? Calendly-Link? primary-color? oben+unten?), Booking-Sektion, Chatbot-FAB. Score 0-15. JSON: {"score":n,"notes":"..."}', max: 15, image: desktopShot },
+    pass5_brand_coherence: { sys: 'Du bist Brand-Designer. Bewerte ob Profile-Color-Palette (' + profile.palette.primary + '/' + profile.palette.accent + '/' + profile.palette.dark + ') konsistent durchgezogen ist + Layout-DNA: ' + profile.layout_dna.slice(0, 80) + '. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
+  };
+
+  const results = { total: 0, passes: {}, notes: [] };
+  let totalScore = 0; let totalMax = 0;
+  for (const [key, cfg] of Object.entries(passes)) {
+    if (!cfg.image) { results.passes[key] = `n/a (no-shot)/${cfg.max}`; totalMax += cfg.max; continue; }
+    try {
+      const res = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: cfg.sys + ' Antworte NUR mit JSON, keine Erklaerung davor/danach.',
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: cfg.image } },
+            { type: 'text', text: 'Firma: ' + prospect.company + ' / Branche: ' + prospect.branche + '. Bewerte den Screenshot.' },
+          ],
+        }],
+      });
+      inputTokensTotal += res.usage.input_tokens; outputTokensTotal += res.usage.output_tokens;
+      const txt = res.content?.filter(c => c.type === 'text').map(c => c.text).join('\n') || '';
+      const m = txt.match(/\{[\s\S]*\}/);
+      let parsed = { score: 0, notes: 'parse-fail' };
+      if (m) {
+        try { parsed = JSON.parse(m[0]); } catch {
+          try { parsed = JSON.parse(m[0].replace(/,(\s*[}\]])/g, '$1')); } catch {}
+        }
+      }
+      const sc = Math.max(0, Math.min(cfg.max, parseInt(parsed.score, 10) || 0));
+      results.passes[key] = sc + '/' + cfg.max;
+      totalScore += sc; totalMax += cfg.max;
+      if (parsed.notes) results.notes.push(key + ': ' + parsed.notes.slice(0, 200));
+    } catch (e) {
+      results.passes[key] = 'err/' + cfg.max;
+      totalMax += cfg.max;
+    }
+  }
+  results.total = totalScore;
+  results.max = totalMax;
+  console.log('  visual-verify total: ' + totalScore + '/' + totalMax);
+  return results;
+}
+
+// V35.5 Patch C: Iter-Loop (Auto-Iteration wenn Score unter Threshold) ─────
+async function buildIteration(sys, usr, html, verifyResult, profile) {
+  // Build erweiterten User-Prompt mit Verify-Notes als Feedback
+  const noteBlock = (verifyResult.notes || []).slice(0, 5).join('\n- ');
+  const iterUsr = usr + '\n\n=== ITER-FEEDBACK ===\nDie erste Version hatte Score ' + verifyResult.total + '/' + verifyResult.max + '. Verbessere folgende Punkte konkret:\n- ' + noteBlock + '\n=== END FEEDBACK ===\n\nBaue HTML neu mit DENSELBEN Pflicht-Direktiven aber adressiere die Iter-Feedback-Punkte. Output: NUR komplettes HTML ab <!DOCTYPE html>.';
+  const html2 = stripCodeFence(await llm('claude-sonnet-4-6', sys, iterUsr, 48000));
+  return html2.startsWith('<!DOCTYPE') ? html2 : '<!DOCTYPE html>\n' + html2;
+}
+
 // ─── Instantly Reply ─────────────────────────────────────────
 async function sendInstantlyReply(threadId, body, subject, mailCc) {
   if (!INSTANTLY_API_KEY || !threadId) return { sent: false, reason: 'no_key_or_thread' };
@@ -1415,8 +1514,8 @@ async function main() {
       preview_url_seite2: previewUrl + 'seite2.html',
       branche_cluster: profile.slug,
       signature_effect: profile.signature_name,
-      design_thesis: 'V35.4 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
-      prompt_version: 'v35_4_cookie_rawhtml_chatbot_2026-05-06',
+      design_thesis: 'V35.5 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+      prompt_version: 'v35_5_visual_verify_iter_2026-05-06',
     });
     if (SLACK_ALERTS_WEBHOOK) {
       await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl} | profile=${profile.slug} auth=${(globalThis.__VFS_AUTHENTIC_POOL||[]).length} ai=${(globalThis.__VFS_AI_POOL||[]).length}` }) }).catch(()=>{});
@@ -1424,13 +1523,47 @@ async function main() {
     return;
   }
 
+  // V35.5 Patch B: Visual-Verify + Patch C: Iter-Loop
+  let visualResult = await visualVerify(previewUrl, profile, { company, branche });
+  let iterCount = 0;
+  const ITER_THRESHOLD = 75;
+  const ITER_MAX = 2;
+  let currentHtml = finalHtml;
+  while (visualResult.total !== null && visualResult.total < ITER_THRESHOLD && iterCount < ITER_MAX) {
+    iterCount++;
+    console.log('V35.5 STEP C Iter ' + iterCount + ' (score ' + visualResult.total + ' < ' + ITER_THRESHOLD + ')');
+    try {
+      const newHtml = await buildIteration(sys, usr, currentHtml, visualResult, profile);
+      currentHtml = newHtml;
+      // Re-deploy auf gleichen slug
+      const newPreviewUrl = await netlifyDeploy(slug, { 'index.html': currentHtml, 'seite2.html': seite2Html });
+      console.log('  iter-redeploy ok: ' + newPreviewUrl);
+      // Re-screenshot + re-verify
+      visualResult = await visualVerify(newPreviewUrl, profile, { company, branche });
+      console.log('  iter ' + iterCount + ' new score: ' + visualResult.total);
+    } catch (e) {
+      console.log('  iter ' + iterCount + ' failed: ' + e.message);
+      break;
+    }
+  }
+  if (visualResult.total !== null && visualResult.total < ITER_THRESHOLD) {
+    console.log('V35.5 Visual-Verify: nach ' + iterCount + ' Iter immer noch unter Threshold (' + visualResult.total + '/' + visualResult.max + '). Slack-Alert.');
+    if (SLACK_ALERTS_WEBHOOK) {
+      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: ':warning: Mockup ' + company + ' (' + slug + ') unter Visual-Threshold nach ' + iterCount + ' Iter. Score: ' + visualResult.total + '/' + visualResult.max + ' Preview: ' + previewUrl }) }).catch(()=>{});
+    }
+  }
+
   // Lighthouse
   console.log('Run Lighthouse');
   const lh = await runLighthouse(previewUrl);
 
-  // 5 Persona-Passes
+  // 5 Persona-Passes (HTML-basiert, ergaenzend zum visualVerify)
   console.log('Run 5 passes');
-  const passes = await runPasses(finalHtml, { company });
+  const passes = await runPasses(currentHtml, { company });
+  // V35.5: visualVerify als zusaetzliches Feld in passes-Objekt
+  passes.visual_verify_total = visualResult.total !== null ? (visualResult.total + '/' + visualResult.max) : 'n/a';
+  for (const [k, v] of Object.entries(visualResult.passes || {})) passes['visual_' + k] = v;
+  passes.iter_count = iterCount;
 
   // Mail-Body
   const mailSys = `Schweizer Hochdeutsch ss statt sz, Sie-Form, keine Em-Dashes, keine Floskeln. Du schreibst eine kurze HTML-Mail (max 80 Worte) als Valentin Fischer von vf-services. Inhalt: kurzer konkreter Bezug auf Reply-Signal, Vorschau-Link einbetten, Calendly-Link <a href='https://calendly.com/valentin-fischer-vf-services/30min'>Termin vereinbaren</a> anbieten. Output: NUR HTML-Body, keine Subject, kein DOCTYPE.`;
@@ -1461,10 +1594,10 @@ async function main() {
     lifecycle_stage: sendRes.sent ? 'preview_sent' : 'deployed',
     branche_cluster: profile.slug,
     signature_effect: profile.signature_name,
-    design_thesis: 'V35.4 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+    design_thesis: 'V35.5 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'v35_4_cookie_rawhtml_chatbot_2026-05-06',
+    prompt_version: 'v35_5_visual_verify_iter_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
