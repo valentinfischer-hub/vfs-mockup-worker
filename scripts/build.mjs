@@ -810,8 +810,52 @@ try {
 
 if (!MOCKUP_ID) throw new Error('MOCKUP_ID env required');
 
-// V37.2.3: maxRetries 4, timeout 10min — plus llm()-Wrapper mit 529-Retry + Opus→Sonnet-Fallback
+// V37.2.4: maxRetries 4, timeout 10min — plus GLOBAL Monkey-Patch auf anthropic.messages.create
+//          mit 529/429-Retry 30s/60s/120s/240s + Opus→Sonnet→Haiku-Fallback. Wrapped ALLE Calls
+//          (step0, step1, step2, step3, llm, visual-verify, variant-pick, mail-body) automatisch.
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 4, timeout: 10 * 60 * 1000 });
+
+// === V37.2.4 Global Anthropic-Retry-Wrapper ===
+const _origCreate = anthropic.messages.create.bind(anthropic.messages);
+const _origStream = anthropic.messages.stream.bind(anthropic.messages);
+const MODEL_FALLBACK = {
+  'claude-opus-4-7': ['claude-opus-4-6', 'claude-sonnet-4-6'],
+  'claude-opus-4-6': ['claude-sonnet-4-6'],
+  'claude-sonnet-4-6': ['claude-haiku-4-5-20251001'],
+  'claude-haiku-4-5-20251001': [],
+};
+const RETRY_WAITS_MS = [30000, 60000, 120000, 240000];
+function isOverloadedErr(e) { return e?.status === 529 || e?.status === 429 || /overloaded/i.test(e?.message || ''); }
+async function _retryCreate(args) {
+  const origModel = args.model;
+  const tryWithModel = async (model) => {
+    let lastErr;
+    for (let i = 0; i <= RETRY_WAITS_MS.length; i++) {
+      try { return await _origCreate({ ...args, model }); }
+      catch (e) {
+        lastErr = e;
+        if (!isOverloadedErr(e)) throw e;
+        if (i === RETRY_WAITS_MS.length) break;
+        const wait = RETRY_WAITS_MS[i];
+        console.log('[anthropic-retry] ' + model + ' status ' + (e.status || '?') + ' attempt ' + (i + 1) + '/' + (RETRY_WAITS_MS.length + 1) + ', warte ' + (wait / 1000) + 's...');
+        await new Promise(r => setTimeout(r, wait));
+      }
+    }
+    throw lastErr;
+  };
+  try { return await tryWithModel(origModel); }
+  catch (e) {
+    const chain = MODEL_FALLBACK[origModel] || [];
+    for (const fb of chain) {
+      console.log('[anthropic-retry] ' + origModel + ' overloaded, fallback auf ' + fb);
+      try { return await tryWithModel(fb); }
+      catch (e2) { console.log('[anthropic-retry] fallback ' + fb + ' auch failed: ' + (e2?.message || e2).slice(0, 120)); }
+    }
+    throw e;
+  }
+}
+anthropic.messages.create = _retryCreate;
+// Stream wird in llm() schon mit try/catch gewrappt, kein zweiter Wrap nötig.
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
 
