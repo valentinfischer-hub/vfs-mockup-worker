@@ -810,7 +810,7 @@ try {
 
 if (!MOCKUP_ID) throw new Error('MOCKUP_ID env required');
 
-// V37.2: maxRetries 4, explicit Request-Timeout 10min (war 5min) — Opus 4.7 mit 32k tokens kann bis 8 Min dauern
+// V37.2.3: maxRetries 4, timeout 10min — plus llm()-Wrapper mit 529-Retry + Opus→Sonnet-Fallback
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 4, timeout: 10 * 60 * 1000 });
 
 let inputTokensTotal = 0, outputTokensTotal = 0;
@@ -919,39 +919,70 @@ async function patchPending(id, fields) {
   return sb('PATCH', `pending_previews?id=eq.${id}`, fields);
 }
 
-// ─── Anthropic Helper (V36.4: Auto-Streaming für lange Outputs) ─────
-async function llm(model, system, user, maxTokens = 4000) {
-  // V36.4: Streaming aktivieren für lange Outputs (>16k tokens) → robust gegen Connection-Drops
+// ─── Anthropic Helper (V37.2.2: 529-Retry mit Exponential-Backoff + Opus→Sonnet-Fallback) ─────
+const MODEL_FALLBACK_CHAIN = {
+  'claude-opus-4-7': ['claude-opus-4-6', 'claude-sonnet-4-6'],
+  'claude-opus-4-6': ['claude-sonnet-4-6'],
+  'claude-sonnet-4-6': ['claude-haiku-4-5-20251001'],
+};
+async function _llmRaw(model, system, user, maxTokens) {
   if (maxTokens > 16000) {
     try {
-      const stream = anthropic.messages.stream({
-        model, max_tokens: maxTokens, system,
-        messages: [{ role: 'user', content: user }],
-      });
-      // Optional: Streaming-Progress in Logs (alle 5k Tokens)
+      const stream = anthropic.messages.stream({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });
       let lastLog = 0;
       stream.on('text', (delta, snapshot) => {
-        if (snapshot.length - lastLog > 5000) {
-          console.log('[stream ' + model.slice(7, 13) + '] ' + snapshot.length + ' chars');
-          lastLog = snapshot.length;
-        }
+        if (snapshot.length - lastLog > 5000) { console.log('[stream ' + model.slice(7, 13) + '] ' + snapshot.length + ' chars'); lastLog = snapshot.length; }
       });
       const final = await stream.finalMessage();
       inputTokensTotal += final.usage.input_tokens;
       outputTokensTotal += final.usage.output_tokens;
       return final.content?.[0]?.text || '';
     } catch (e) {
+      // Bei 529 Overloaded NICHT auf .create() fallen (selber Fehler), nach oben werfen
+      if (e?.status === 529 || /overloaded/i.test(e?.message || '')) throw e;
       console.log('[llm-stream] error, fallback to .create():', e.message);
-      // Fall-through zu non-streaming
     }
   }
-  const res = await anthropic.messages.create({
-    model, max_tokens: maxTokens, system,
-    messages: [{ role: 'user', content: user }],
-  });
+  const res = await anthropic.messages.create({ model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: user }] });
   inputTokensTotal += res.usage.input_tokens;
   outputTokensTotal += res.usage.output_tokens;
   return res.content?.[0]?.text || '';
+}
+async function llm(model, system, user, maxTokens = 4000) {
+  // V37.2.2: 3 Retries mit 30s/60s/120s Backoff, dann Fallback-Chain
+  const tryModel = async (m) => {
+    const waits = [30000, 60000, 120000];
+    let lastErr;
+    for (let i = 0; i <= waits.length; i++) {
+      try {
+        return await _llmRaw(m, system, user, maxTokens);
+      } catch (e) {
+        lastErr = e;
+        const overloaded = e?.status === 529 || /overloaded/i.test(e?.message || '');
+        const rateLimit = e?.status === 429;
+        if (!overloaded && !rateLimit) throw e;
+        if (i === waits.length) break;
+        const wait = waits[i];
+        console.log('[llm] ' + m + ' status ' + (e?.status || '?') + ' (attempt ' + (i + 1) + '/' + (waits.length + 1) + '), waiting ' + (wait / 1000) + 's...');
+        await new Promise(r => setTimeout(r, wait));
+      }
+    }
+    throw lastErr;
+  };
+  try {
+    return await tryModel(model);
+  } catch (e) {
+    const chain = MODEL_FALLBACK_CHAIN[model] || [];
+    for (const fallback of chain) {
+      console.log('[llm] ' + model + ' exhausted, falling back to ' + fallback);
+      try {
+        // Opus 4.7 max_tokens 32k, Sonnet kann bis 64k, anpassen falls fallback grösser kann
+        const fbMax = (fallback === 'claude-sonnet-4-6' && maxTokens === 32000) ? 48000 : maxTokens;
+        return await tryModel(fallback);
+      } catch (e2) { console.log('[llm] fallback ' + fallback + ' also failed: ' + (e2?.message || e2)); continue; }
+    }
+    throw e;
+  }
 }
 
 // ─── Code-Fence-Strip (LLM-Output Sanitization) ─────────────────
@@ -1716,22 +1747,41 @@ async function main() {
 
   await patchPending(MOCKUP_ID, { build_status: 'building', lifecycle_stage: 'building' });
 
-  // Lookup Lead-Daten via Instantly oder Supabase leads
-  let prospectUrl = '';
+  // V37.2.3: Lead-Lookup-Bug-Fix
+  // Instantly v2 leads/list ignoriert filter:"email = ..." und gibt random first lead zurueck.
+  // Korrekt: search-Parameter mit email als Wert, dann Email-Match validieren.
+  // Fallback IMMER auf email-domain falls kein eindeutiger Match.
+  let prospectUrl = `https://${m.email.split('@')[1]}`;
   let leadData = {};
   try {
     const list = await fetch(`https://api.instantly.ai/api/v2/leads/list`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${INSTANTLY_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filter: `email = '${m.email}'`, limit: 1 }),
+      body: JSON.stringify({ search: m.email, limit: 5 }),
     });
     if (list.ok) {
       const d = await list.json();
-      leadData = d.items?.[0] || {};
-      prospectUrl = leadData.website || leadData.payload?.website || `https://${m.email.split('@')[1]}`;
+      const items = d.items || [];
+      // Strict-Email-Match (case-insensitive)
+      const exact = items.find(x => (x.email || '').toLowerCase() === (m.email || '').toLowerCase());
+      if (exact) {
+        leadData = exact;
+        const candidate = exact.website || exact.payload?.website;
+        // Validate: candidate-Domain muss zur email-Domain passen oder nicht offensichtlich falsch
+        if (candidate) {
+          const emailDomain = (m.email.split('@')[1] || '').toLowerCase().replace(/^www\./, '');
+          const candDomain = candidate.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/.*/, '');
+          if (candDomain.includes(emailDomain) || emailDomain.includes(candDomain)) {
+            prospectUrl = candidate.startsWith('http') ? candidate : 'https://' + candidate.replace(/^\/+/, '');
+          } else {
+            console.log('[lead-lookup] domain mismatch: email=' + emailDomain + ' lead-website=' + candDomain + ' — fallback auf email-domain');
+          }
+        }
+      } else {
+        console.log('[lead-lookup] no exact email match in ' + items.length + ' results — fallback auf email-domain');
+      }
     }
-  } catch (_e) {}
-  if (!prospectUrl) prospectUrl = `https://${m.email.split('@')[1]}`;
+  } catch (e) { console.log('[lead-lookup] error:', e?.message || e); }
 
   const company = m.company || leadData.company_name || m.email.split('@')[0];
   const branche = m.branche || 'Dienstleistung';
