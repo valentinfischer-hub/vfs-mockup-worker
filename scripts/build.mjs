@@ -10,6 +10,12 @@
 // Cloudinary-Wrap) > STOCK (Pexels) > AI (Replicate Flux-Schnell, optional via
 // REPLICATE_API_TOKEN). Plus Logo-Extraction (og:image / Header-class / Favicon).
 // Erweiterte scrapeProspect mit naturalWidth/Height + parent-context + alt-text.
+// V35.2 Changes (2026-05-06): Lazy-Load-Trigger (slow-scroll bottom + scroll top),
+// srcset-best-resolution + data-src/data-lazy-src Fallback, naturalWidth=0 toleriert
+// mit URL-Hint-Inferenz (z.B. "1600x900" oder "_1200" im Path). Quality-Gate
+// Threshold 800 -> 600 mit unknown-size Toleranz. Logo-Detection erweitert: SVG,
+// apple-touch-icon, Markenname-Pattern, header-first-Fallback. REDEPLOY_ONLY
+// patcht jetzt prompt_version+branche_cluster+signature_effect+design_thesis.
 
 import Anthropic from '@anthropic-ai/sdk';
 import puppeteer from 'puppeteer';
@@ -676,6 +682,22 @@ async function scrapeProspect(url) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 900 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 25_000 }).catch(() => {});
+    // V35.2: Lazy-Load-Trigger — slow-scroll bottom + wait + scroll top
+    try {
+      await page.evaluate(async () => {
+        await new Promise(resolve => {
+          let total = 0; const step = 250;
+          const t = setInterval(() => {
+            window.scrollBy(0, step); total += step;
+            if (total >= document.body.scrollHeight) { clearInterval(t); resolve(); }
+          }, 80);
+          setTimeout(() => { clearInterval(t); resolve(); }, 6000);
+        });
+      });
+      await new Promise(r => setTimeout(r, 2000));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await new Promise(r => setTimeout(r, 600));
+    } catch (_) {}
     const data = await page.evaluate(() => {
       // V35.1: Rich image data with context, dims, alt
       const ctx = (el) => {
@@ -691,16 +713,36 @@ async function scrapeProspect(url) {
         }
         return 'body';
       };
+      // V35.2: srcset best-resolution + data-src/data-lazy-src + currentSrc Fallback
+      const pickBestUrl = (i) => {
+        const srcset = i.srcset || i.getAttribute('data-srcset') || '';
+        if (srcset) {
+          const items = srcset.split(',').map(s => s.trim());
+          let bestUrl = null, bestW = 0;
+          for (const item of items) {
+            const parts = item.split(/\s+/);
+            const u = parts[0]; const w = parts[1] ? parseInt(parts[1].replace('w', ''), 10) : 0;
+            if (w > bestW && u) { bestW = w; bestUrl = u; }
+          }
+          if (bestUrl) return { url: bestUrl, hintW: bestW };
+        }
+        const url = i.currentSrc || i.src || i.getAttribute('data-src') || i.getAttribute('data-lazy-src') || i.getAttribute('data-original') || '';
+        return { url, hintW: 0 };
+      };
       const imgsRich = Array.from(document.querySelectorAll('img'))
-        .filter(i => i.src && !i.src.startsWith('data:') && i.naturalWidth > 100)
-        .slice(0, 30)
-        .map(i => ({
-          url: i.src,
+        .map(i => {
+          const { url, hintW } = pickBestUrl(i);
+          return { i, url, hintW };
+        })
+        .filter(x => x.url && !x.url.startsWith('data:') && /^(https?:)?\/\//.test(x.url))
+        .slice(0, 40)
+        .map(({ i, url, hintW }) => ({
+          url: url.startsWith('//') ? 'https:' + url : url,
           alt: (i.alt || '').slice(0, 120),
-          w: i.naturalWidth || 0,
+          w: i.naturalWidth || hintW || 0,
           h: i.naturalHeight || 0,
           ctx: ctx(i),
-          cls: (i.className || '').toString().slice(0, 60),
+          cls: (i.className || '').toString().slice(0, 80),
           near_text: (i.parentElement?.innerText || '').slice(0, 80).trim(),
         }));
       // Plus background-image URLs in inline-styles (Hero-Backgrounds oft so)
@@ -716,12 +758,14 @@ async function scrapeProspect(url) {
         .map(e => (e.innerText || '').trim()).filter(t => t.length > 20 && t.length < 400)
         .slice(0, 30);
       const ogImage = document.querySelector('meta[property="og:image"]')?.content || '';
-      const favicon = (document.querySelector('link[rel*="icon"]')?.href || '').replace(/^http:/, 'https:');
+      const favicon = (document.querySelector('link[rel*="icon"]:not([rel*="apple"])')?.href || '').replace(/^http:/, 'https:');
+      const appleTouchIcon = (document.querySelector('link[rel*="apple-touch-icon"]')?.href || '').replace(/^http:/, 'https:');
       return {
         title: document.title || '',
         description: document.querySelector('meta[name="description"]')?.content || '',
         ogImage,
         favicon,
+        appleTouchIcon,
         images: allImgs.map(x => x.url),
         imagesRich: allImgs,
         headlines: Array.from(document.querySelectorAll('h1, h2')).map(e => (e.innerText || '').trim()).filter(Boolean).slice(0, 10),
@@ -745,26 +789,43 @@ function scoreProspectImages(imagesRich, branche) {
   const teamHint = /(team|crew|mitarbeiter|kolleg|stylist|therapeut|berater|portrait|portr%C3%A4t)/i;
   const heroHint = /(hero|header|banner|cover|main-image|full|wide|landing)/i;
   const out = [];
+  // URL-Hint: Pfad-Zahlen (z.B. "1600x900" oder "_1200") als width-proxy
+  const inferWidthFromUrl = (u) => {
+    const m1 = u.match(/(\d{3,4})x(\d{3,4})/);
+    if (m1) return parseInt(m1[1], 10);
+    const m2 = u.match(/[_-](\d{3,4})(?:\.|_|x)/);
+    if (m2) return parseInt(m2[1], 10);
+    if (/(=w\d{3,4}|width=\d{3,4})/.test(u)) {
+      const m3 = u.match(/(?:=w|width=)(\d{3,4})/); if (m3) return parseInt(m3[1], 10);
+    }
+    return 0;
+  };
   for (const im of imagesRich) {
     if (!im.url || blacklist.test(im.url) || blacklist.test(im.cls || '') || blacklist.test(im.alt || '')) continue;
-    const w = im.w || 0;
-    if (w > 0 && w < 800) continue; // 800 minimum, 0 = unknown size durch lazy-load → toleriert
+    let w = im.w || 0;
+    if (w === 0) w = inferWidthFromUrl(im.url); // V35.2: URL-Hint statt 0-skip
+    // Hard-skip nur wenn explizit klein
+    if (w > 0 && w < 600) continue;
     let score = 0;
     if (w >= 1800) score += 40;
     else if (w >= 1400) score += 30;
     else if (w >= 1100) score += 20;
-    else if (w >= 800) score += 10;
+    else if (w >= 800) score += 12;
+    else if (w >= 600) score += 6;
+    else score += 4; // unknown size: tolerieren, score basiert auf Rest
     if (im.ctx === 'gallery' || galleryHint.test(im.cls || '') || galleryHint.test(im.url)) score += 25;
     if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) score += 20;
     if (teamHint.test(im.cls || '') || teamHint.test(im.alt || '')) score += 15;
-    if (branchKey && im.alt && im.alt.toLowerCase().includes(branchKey)) score += 10;
+    if (branchKey && im.alt && im.alt.toLowerCase().includes(branchKey)) score += 12;
     if (im.near_text && im.near_text.length > 20) score += 5;
+    // V35.2: jpg/webp/png im Pfad bevorzugen (echte Inhalts-Bilder)
+    if (/\.(jpe?g|webp|png)(\?|$)/i.test(im.url)) score += 4;
     // Aspect-Ratio: sehr schmale (Slider/Banner) abwerten, sehr hohe ok
     if (im.w && im.h) {
       const ar = im.w / im.h;
       if (ar > 4 || ar < 0.3) score -= 20;
     }
-    if (score < 10) continue;
+    if (score < 8) continue; // V35.2: 10→8 (toleranter)
     let role = 'generic';
     if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) role = 'hero';
     else if (im.ctx === 'gallery' || galleryHint.test(im.cls || '') || galleryHint.test(im.url)) role = 'gallery';
@@ -774,14 +835,34 @@ function scoreProspectImages(imagesRich, branche) {
   return out.sort((a, b) => b.score - a.score).slice(0, 12);
 }
 
-// V35.1 Logo-Extraction (og:image + Header-img-class~logo + Favicon) ---
-function extractProspectLogo(scrape) {
+// V35.2 Logo-Extraction — robuster (SVG, apple-touch, Markenname, Header-context)
+function extractProspectLogo(scrape, companyName) {
   if (!scrape) return null;
-  if (scrape.ogImage && /\.(png|jpg|jpeg|webp|svg)/i.test(scrape.ogImage)) {
+  // 1. og:image, aber nur wenn nicht "preview" oder "share-image" (oft Hero-Banner statt Logo)
+  if (scrape.ogImage && /\.(png|jpe?g|webp|svg)/i.test(scrape.ogImage) && !/(preview|share|cover|hero|banner)/i.test(scrape.ogImage)) {
     return { url: scrape.ogImage, source: 'og:image' };
   }
-  const headerLogo = (scrape.imagesRich || []).find(i => /(logo|brand|wordmark)/i.test(i.url) || /(logo|brand|wordmark)/i.test(i.cls || '') || /(logo|brand|wordmark)/i.test(i.alt || ''));
+  // 2. Logo-Pattern in URL/class/alt — erweitert
+  const logoRx = /(logo|brand|wordmark|marke|firmenzeichen|signet|emblem|kln-logo|brand-mark)/i;
+  const headerLogo = (scrape.imagesRich || []).find(i =>
+    (i.ctx === 'header' && (logoRx.test(i.url) || logoRx.test(i.cls || '') || logoRx.test(i.alt || ''))) ||
+    logoRx.test(i.url) || logoRx.test(i.cls || '') || logoRx.test(i.alt || '')
+  );
   if (headerLogo) return { url: headerLogo.url, source: 'header-class' };
+  // 3. Markenname als Pattern (companyName z.B. "silea" → suche "silea" im URL/alt)
+  if (companyName) {
+    const ck = companyName.toLowerCase().replace(/\s+/g, '');
+    const brandLogo = (scrape.imagesRich || []).find(i =>
+      i.ctx === 'header' && (i.url.toLowerCase().includes(ck) || (i.alt || '').toLowerCase().includes(ck))
+    );
+    if (brandLogo) return { url: brandLogo.url, source: 'brand-name' };
+  }
+  // 4. Erstes Bild im Header (klein-bis-mittel, oft Logo ohne explizite class)
+  const firstHeader = (scrape.imagesRich || []).find(i => i.ctx === 'header' && i.w >= 80 && i.w <= 400);
+  if (firstHeader) return { url: firstHeader.url, source: 'header-first' };
+  // 5. apple-touch-icon (typisch 180x180 oder 192x192)
+  if (scrape.appleTouchIcon) return { url: scrape.appleTouchIcon, source: 'apple-touch-icon' };
+  // 6. Favicon (last resort)
   if (scrape.favicon && !/\/favicon\.ico$/i.test(scrape.favicon)) {
     return { url: scrape.favicon, source: 'favicon' };
   }
@@ -1056,8 +1137,8 @@ async function main() {
 
   // === V35.1: Hybrid-Image-Pool (Authentic > Stock > AI) ===
   console.log('V35.1 STEP 3.5 Hybrid-Pool-Init');
-  // 1. Logo-Extraction
-  const logo = extractProspectLogo(scrape);
+  // 1. Logo-Extraction (V35.2: companyName Hint mitgeben)
+  const logo = extractProspectLogo(scrape, company);
   if (logo) {
     const logoOk = await validateImageHead(logo.url);
     globalThis.__VFS_LOGO = logoOk ? { url: cld(logo.url, 600), source: logo.source } : null;
@@ -1121,11 +1202,21 @@ async function main() {
   await patchPending(MOCKUP_ID, { build_status: 'deployed', preview_url: previewUrl, preview_url_seite2: previewUrl + 'seite2.html' });
 
   // REDEPLOY_ONLY-Modus: nach Deploy abbrechen ohne Send (fuer Hot-Fix kaputter Mockups)
+  // V35.2: Final-PATCH-Felder MIT patchen (sonst zeigt DB alte V34-Werte fuer Test-Builds)
   if (m.build_status === 'redeploy_only') {
     console.log('REDEPLOY_ONLY mode: skip lighthouse/passes/mail/send');
-    await patchPending(MOCKUP_ID, { build_status: 'redeployed', signal: 'redeploy_only_completed' });
+    await patchPending(MOCKUP_ID, {
+      build_status: 'redeployed',
+      signal: 'redeploy_only_completed',
+      preview_url: previewUrl,
+      preview_url_seite2: previewUrl + 'seite2.html',
+      branche_cluster: profile.slug,
+      signature_effect: profile.signature_name,
+      design_thesis: 'V35.2 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+      prompt_version: 'v35_2_lazyload_logo_2026-05-06',
+    });
     if (SLACK_ALERTS_WEBHOOK) {
-      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl}` }) }).catch(()=>{});
+      await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl} | profile=${profile.slug} auth=${(globalThis.__VFS_AUTHENTIC_POOL||[]).length} ai=${(globalThis.__VFS_AI_POOL||[]).length}` }) }).catch(()=>{});
     }
     return;
   }
@@ -1170,7 +1261,7 @@ async function main() {
     design_thesis: 'V35.1 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'v35_1_hybrid_pool_2026-05-06',
+    prompt_version: 'v35_2_lazyload_logo_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
