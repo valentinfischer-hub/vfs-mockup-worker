@@ -397,6 +397,7 @@ async function step0_audit(scrape, profile, prospect) {
 }
 
 // V37.0 Master-System-Prompt mit 20 Best-Practices (XML-Tags, Persona-Switch, Anti-Pattern, Skeleton, Token-Budget, Self-Check)
+// V37.2: + Universal-Watchdog-Code-Block + KONZEPT-DESIGN-Badge + Closing-Tags-Pflicht + Variable-Font-Cluster-DE-Default + Forbidden-Words-Extended + Variants/Iter auf Opus 4.7 (siehe llm-Calls)
 function buildV37SystemPrompt(profile, mockupId, supabaseUrl, prospectAudit) {
   const p = profile;
   const pal = p.palette;
@@ -435,7 +436,10 @@ WAS NIE TUN (preemptive Warnung — diese Fehler haben fruehere Builds halbferti
 - 50/50-Splits (IMMER 60/40 oder 70/30)
 - Generic-Smile-Stock-Photo im Hero (statt Body-Macro-Detail)
 - "Wir bieten..." als Sentence-Start (statt "Bei [Firma] [konkrete Aktion]")
-- Floskeln: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (>1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence
+- Floskeln: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (>1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence, disruptiv, schluesselfertig, optimal, exzellent, einzigartig, individuell-massgeschneidert, hochwertig, kompetent (als Selbstlob), professionell (als Selbstlob), nachhaltig (ohne Beleg), zuverlaessig (ohne Beleg), erfahren (ohne Jahreszahl), erstklassig
+- Body { opacity: 0 } ohne is-loaded-JS-Activator (verhindert dass Seite leer bleibt)
+- img { opacity: <1 } oder filter:blur ohne IntersectionObserver-Activator (verhindert dass Bilder unsichtbar bleiben)
+- clip-path: inset(...) ohne korrespondierenden .is-revealed-JS-Activator
 - Section-Padding unter 80px desktop oder 50px mobile
 - Pricing sichtbar
 - Sektionen isoliert ohne visuelle Uebergaenge
@@ -576,7 +580,52 @@ Header MUSS display:flex justify-content:space-between align-items:center. Logo 
 
 <animations_fallback>
 Alle scroll-triggered Animationen MUESSEN nach 1.2s sichtbar sein auch bei IntersectionObserver-Fail. prefers-reduced-motion media-query als Reset (alle Anims off).
+
+PFLICHT-CODE-BLOCK direkt vor </body> (Universal-Watchdog Force-Reveal):
+<script>
+(function vfsForceReveal(){
+  function nuke(){
+    document.body.classList.add('is-loaded');
+    document.querySelectorAll('section, .stagger, .reveal, .vf-reveal, .cinema-reveal, .load-seq, [data-reveal]').forEach(function(e){
+      e.classList.add('is-visible','is-revealed','in-view','in');
+      e.style.opacity='1'; e.style.transform='none';
+    });
+    document.querySelectorAll('img, picture, figure').forEach(function(e){ e.style.opacity='1'; e.style.visibility='visible'; });
+    document.querySelectorAll('[data-load-step]').forEach(function(e){ e.style.opacity='1'; e.style.transform='none'; });
+    document.querySelectorAll('*').forEach(function(el){
+      if(['SCRIPT','STYLE','LINK','META','HEAD','TITLE','NOSCRIPT'].indexOf(el.tagName) > -1) return;
+      if(el.matches && el.matches(':disabled')) return;
+      var op = parseFloat(getComputedStyle(el).opacity);
+      if(op < 0.1){ el.style.setProperty('opacity','1','important'); el.style.setProperty('transform','none','important'); }
+    });
+  }
+  nuke();
+  setTimeout(nuke, 1200);
+  setTimeout(nuke, 3000);
+  if(window.IntersectionObserver){
+    var obs = new IntersectionObserver(function(entries){ entries.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add('is-visible','is-revealed','in-view','in'); en.target.style.opacity='1'; en.target.style.transform='none'; }}); }, {threshold:0.05, rootMargin:'200px'});
+    document.querySelectorAll('section, .stagger, .reveal, .vf-reveal, .cinema-reveal, .load-seq, [data-reveal]').forEach(function(e){ obs.observe(e); });
+  }
+})();
+</script>
+
+Dieser Block MUSS exakt so erscheinen unmittelbar vor </body>. Verhindert dass Sections/Bilder unsichtbar bleiben wenn IntersectionObserver fehlschlaegt oder Sonnet/Opus den is-loaded-Toggle vergisst.
 </animations_fallback>
+
+<konzept_design_badge_pflicht>
+UWG-Compliance: Im Footer MUSS sichtbar ein KONZEPT-DESIGN-Badge erscheinen (Hintergrund accent, color light, border-radius 4px, padding 4px 10px, font-size 0.7rem, uppercase, letter-spacing 0.15em). Text: "KONZEPT-DESIGN — Beispiel-Mockup, kein verbindliches Angebot". Verhindert UWG-Probleme weil Mockup keine echte Buchungsplattform ist.
+</konzept_design_badge_pflicht>
+
+<closing_tags_pflicht>
+HTML schliesst zwingend mit </main></body></html>. Wenn Token-Limit naht: kuerze FAQ-Antworten (auf 25 Worte) und Testimonials (auf 25 Worte). NIEMALS Closing-Tags weglassen, NIEMALS Universal-Watchdog-Block weglassen. Diese 2 Items sind hoeher prior als Content-Tiefe.
+</closing_tags_pflicht>
+
+<variable_font_cluster_de_hard_default>
+WENN cluster_name in ["Beratung & Service", "Medizin & Wellness"] (also Cluster D oder E):
+- Hero-H1 MUSS Variable-Font 'Recursive' nutzen mit font-variation-settings:'wght' 300 initial → 'wght' 800 mit transition 1.4s cubic-bezier(.22,1,.36,1) bei .in-Klasse
+- CDN: <link href="https://fonts.googleapis.com/css2?family=Recursive:wght@300..1000&display=swap" rel="stylesheet">
+- Verhindert dass Treuhand/Physio Splat/WebGL-Effekt bekommen (Vertrauen-vor-Wow)
+</variable_font_cluster_de_hard_default>
 
 <sprach_pflicht>
 Schweizer Hochdeutsch (ss statt sz). Echte Umlaute ä ö ü (NIE ae oe ue). Sie-Form. Keine Em-Dashes. Saetze max 18 Worte, Durchschnitt 12. Aktive Verben aus Voice. KEIN "Wir bieten..." sondern "Bei [Firma] [konkrete Aktion]". Lokaler Bezug Pflicht: mind. 3x Stadt/Quartier/Region. Mind. 4 Voice-Verben einsetzen. Wenn Daten fehlen: kuerzer schreiben statt faken.
@@ -1579,7 +1628,7 @@ async function buildIteration(sys, usr, html, verifyResult, profile) {
   // Build erweiterten User-Prompt mit Verify-Notes als Feedback
   const noteBlock = (verifyResult.notes || []).slice(0, 5).join('\n- ');
   const iterUsr = usr + '\n\n=== ITER-FEEDBACK ===\nDie erste Version hatte Score ' + verifyResult.total + '/' + verifyResult.max + '. Verbessere folgende Punkte konkret:\n- ' + noteBlock + '\n=== END FEEDBACK ===\n\nBaue HTML neu mit DENSELBEN Pflicht-Direktiven aber adressiere die Iter-Feedback-Punkte. Output: NUR komplettes HTML ab <!DOCTYPE html>.';
-  const html2 = stripCodeFence(await llm('claude-sonnet-4-6', sys, iterUsr, 48000));
+  const html2 = stripCodeFence(await llm('claude-opus-4-7', sys, iterUsr, 32000));
   return html2.startsWith('<!DOCTYPE') ? html2 : '<!DOCTYPE html>\n' + html2;
 }
 
@@ -1810,10 +1859,10 @@ async function main() {
   const variantUsrB = usr + '\n\nVARIANT-DIREKTIVE: Premium-Brand-Stil. Center-Stage-Hero. Mehr Whitespace. Marquee-Ribbon.';
   let htmlA = null, htmlB = null;
   console.log('  → Variant A starting (streaming)...');
-  try { htmlA = stripCodeFence(await llm('claude-sonnet-4-6', sys, variantUsrA, 48000)); console.log('  ✓ Variant A: ' + (htmlA?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant A failed: ' + e.message); }
-  await new Promise(r => setTimeout(r, 3000)); // 3s sleep zwischen Variants (Rate-Limit-Schutz)
-  console.log('  → Variant B starting (streaming)...');
-  try { htmlB = stripCodeFence(await llm('claude-sonnet-4-6', sys, variantUsrB, 48000)); console.log('  ✓ Variant B: ' + (htmlB?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant B failed: ' + e.message); }
+  try { htmlA = stripCodeFence(await llm('claude-opus-4-7', sys, variantUsrA, 32000)); console.log('  ✓ Variant A (Opus 4.7): ' + (htmlA?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant A failed: ' + e.message); }
+  await new Promise(r => setTimeout(r, 5000)); // 5s sleep zwischen Variants (Opus-Rate-Limit-Schutz)
+  console.log('  → Variant B starting (streaming, Opus 4.7)...');
+  try { htmlB = stripCodeFence(await llm('claude-opus-4-7', sys, variantUsrB, 32000)); console.log('  ✓ Variant B (Opus 4.7): ' + (htmlB?.length || 0) + ' chars'); } catch (e) { console.log('  ✗ Variant B failed: ' + e.message); }
   let html;
   if (htmlA && htmlB) {
     // Sonnet pickt Winner basierend auf Profile-Fit
@@ -1838,8 +1887,8 @@ async function main() {
     console.log('  only one variant succeeded');
   }
   if (!html) {
-    // Fallback: Single-Variant-Generation
-    html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
+    // Fallback: Single-Variant-Generation auf Opus 4.7
+    html = stripCodeFence(await llm('claude-opus-4-7', sys, usr, 32000));
   }
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
