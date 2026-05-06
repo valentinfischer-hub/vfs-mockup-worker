@@ -713,9 +713,9 @@ async function scrapeProspect(url) {
         }
         return 'body';
       };
-      // V35.2: srcset best-resolution + data-src/data-lazy-src + currentSrc Fallback
+      // V35.3: srcset best-resolution + erweiterte data-* Fallbacks + URL-Resolution
       const pickBestUrl = (i) => {
-        const srcset = i.srcset || i.getAttribute('data-srcset') || '';
+        const srcset = i.srcset || i.getAttribute('data-srcset') || i.getAttribute('data-srcset-1x') || '';
         if (srcset) {
           const items = srcset.split(',').map(s => s.trim());
           let bestUrl = null, bestW = 0;
@@ -726,18 +726,38 @@ async function scrapeProspect(url) {
           }
           if (bestUrl) return { url: bestUrl, hintW: bestW };
         }
-        const url = i.currentSrc || i.src || i.getAttribute('data-src') || i.getAttribute('data-lazy-src') || i.getAttribute('data-original') || '';
+        // V35.3: lazy-load-Pattern erweitert
+        const url = i.currentSrc
+          || i.src
+          || i.getAttribute('data-src')
+          || i.getAttribute('data-lazy-src')
+          || i.getAttribute('data-original')
+          || i.getAttribute('data-original-src')
+          || i.getAttribute('data-img')
+          || i.getAttribute('data-pin-media')
+          || i.getAttribute('data-srcset-1x')
+          || '';
         return { url, hintW: 0 };
+      };
+      // V35.3: URL-Resolution: relative URLs zu absolute via new URL(...)
+      const resolveUrl = (u) => {
+        if (!u) return '';
+        if (u.startsWith('data:')) return '';
+        try {
+          // Relative + absolute resolution (browser-native)
+          return new URL(u, document.baseURI).href;
+        } catch { return u; }
       };
       const imgsRich = Array.from(document.querySelectorAll('img'))
         .map(i => {
-          const { url, hintW } = pickBestUrl(i);
+          const { url: rawUrl, hintW } = pickBestUrl(i);
+          const url = resolveUrl(rawUrl);
           return { i, url, hintW };
         })
-        .filter(x => x.url && !x.url.startsWith('data:') && /^(https?:)?\/\//.test(x.url))
-        .slice(0, 40)
+        .filter(x => x.url && /^https?:\/\//i.test(x.url))
+        .slice(0, 50)
         .map(({ i, url, hintW }) => ({
-          url: url.startsWith('//') ? 'https:' + url : url,
+          url,
           alt: (i.alt || '').slice(0, 120),
           w: i.naturalWidth || hintW || 0,
           h: i.naturalHeight || 0,
@@ -842,13 +862,17 @@ function extractProspectLogo(scrape, companyName) {
   if (scrape.ogImage && /\.(png|jpe?g|webp|svg)/i.test(scrape.ogImage) && !/(preview|share|cover|hero|banner)/i.test(scrape.ogImage)) {
     return { url: scrape.ogImage, source: 'og:image' };
   }
-  // 2. Logo-Pattern in URL/class/alt — erweitert
+  // 2. Logo-Pattern in URL/class/alt — V35.3: 2-Stufig (header-context BEVORZUGT, sonst body-fallback)
   const logoRx = /(logo|brand|wordmark|marke|firmenzeichen|signet|emblem|kln-logo|brand-mark)/i;
   const headerLogo = (scrape.imagesRich || []).find(i =>
-    (i.ctx === 'header' && (logoRx.test(i.url) || logoRx.test(i.cls || '') || logoRx.test(i.alt || ''))) ||
+    i.ctx === 'header' && (logoRx.test(i.url) || logoRx.test(i.cls || '') || logoRx.test(i.alt || ''))
+  );
+  if (headerLogo) return { url: headerLogo.url, source: 'header-logo-class' };
+  // 2b. Body-Fallback: Pattern allein (z.B. Logo im Footer als Fallback)
+  const anyLogo = (scrape.imagesRich || []).find(i =>
     logoRx.test(i.url) || logoRx.test(i.cls || '') || logoRx.test(i.alt || '')
   );
-  if (headerLogo) return { url: headerLogo.url, source: 'header-class' };
+  if (anyLogo) return { url: anyLogo.url, source: 'body-logo-class' };
   // 3. Markenname als Pattern (companyName z.B. "silea" → suche "silea" im URL/alt)
   if (companyName) {
     const ck = companyName.toLowerCase().replace(/\s+/g, '');
@@ -967,12 +991,33 @@ function buildHybridPoolPrompt({ logo, authentic, stock, ai }) {
     });
     lines.push(``);
   }
+  // V35.3: Sektion-Mapping (klare Hierarchie pro Sektion, NICHT pauschal)
+  const hasAuthHero = (authentic || []).some(x => x.role === 'hero');
+  const hasAuthGallery = (authentic || []).filter(x => x.role === 'gallery').length;
+  const hasAuthTeam = (authentic || []).some(x => x.role === 'team');
+  const hasAiHero = (ai || []).some(x => x.role === 'hero');
+  const hasAiGallery = (ai || []).some(x => x.role === 'gallery');
+  lines.push('SEKTION-MAPPING (Pflicht-Reihenfolge je Sektion):');
+  lines.push(`- Header-Logo: ${logo && logo.url ? 'LOGO-Slot oben verwenden' : 'KEIN Logo gefunden -> Wordmark der Firma in Display-Font mit primary-Color (NICHT Stock-Bild als Logo)'}`);
+  if (hasAuthHero) lines.push('- Hero: erste AUTHENTIC role=hero');
+  else if (hasAiHero) lines.push('- Hero: AI role=hero (echtes Branche-Bild generiert, BEVORZUGT vor Stock fuer Hero)');
+  else lines.push('- Hero: STOCK aus den ersten 3-5 Pool-Eintraegen');
+  if (hasAuthGallery >= 3) lines.push('- Galerie: AUTHENTIC role=gallery (mind. 3-4 Bilder, Bento-Grid)');
+  else if (hasAuthGallery >= 1 && hasAiGallery) lines.push('- Galerie: AUTHENTIC role=gallery + AI role=gallery kombinieren (Bento)');
+  else if (hasAiGallery) lines.push('- Galerie: AI role=gallery (BEVORZUGT vor Stock fuer Galerie) + Stock als Fueller');
+  else lines.push('- Galerie: STOCK aus Pool, mind. 4-6 Bilder, Bento-Grid mit Variable-Hoehen');
+  lines.push('- Leistungen-Cards: STOCK Pool (eines pro Card)');
+  lines.push(`- Team-Cards: ${hasAuthTeam ? 'AUTHENTIC role=team (echte Teammitglieder)' : 'STOCK Portrait-Bilder als Placeholder'}`);
+  lines.push('- Reviews-Avatars: STOCK Pool oder Initial-Bubbles (Buchstaben in primary-Color)');
+  lines.push('- Standort: keine Bilder noetig (Maps-iframe + Adress-Text)');
+  lines.push('- FAQ + Footer: keine Bilder');
+  lines.push('');
   lines.push('REGELN:');
   lines.push('1. Verwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE images.unsplash.com erfinden. KEIN Cloudinary-Fetch-Wrap.');
-  lines.push('2. Authentic-Pool fuer Header-Logo, Hero, Galerie-Sektion, Team (wenn role=team vorhanden).');
-  lines.push('3. Stock-Pool fuer Service-Cards, Reviewer-Avatars, generische Detail-Shots, Fallback wenn Authentic leer.');
-  lines.push('4. AI-Pool nur fuer Sektionen wo weder Authentic noch Stock passt.');
-  lines.push('5. Wenn kein Logo: Wordmark der Firma in Display-Font mit primary-Color statt img.');
+  lines.push('2. Wenn Authentic-Pool ein role=hero/gallery/team hat, ZUERST das verwenden (Authentizitaet).');
+  lines.push('3. Wenn Authentic fehlt aber AI-Pool das role hat: AI vor Stock einsetzen (AI ist branche+palette-spezifisch generiert).');
+  lines.push('4. Stock nur als Fallback ODER fuer Sektionen wo wir explizit Stock vorschreiben (Service-Cards, Avatars).');
+  lines.push('5. Wenn kein Logo-Slot: Wordmark der Firma in Display-Font mit primary-Color statt img - NIEMALS Stock-Bild als Logo.');
   lines.push('=== END BILDER-POOLS ===\n');
   return lines.join('\n');
 }
@@ -1135,8 +1180,15 @@ async function main() {
   // V35: Branche-Sub-Profile-Lookup + Master-Prompt-Builder (2026-05-06)
   const profile = lookupProfile(branche, cluster.cluster);
 
-  // === V35.1: Hybrid-Image-Pool (Authentic > Stock > AI) ===
-  console.log('V35.1 STEP 3.5 Hybrid-Pool-Init');
+  // === V35.1+: Hybrid-Image-Pool (Authentic > Stock > AI) ===
+  console.log('V35.3 STEP 3.5 Hybrid-Pool-Init');
+  // V35.3 Debug: log scraped imagesRich
+  const debugRich = scrape.imagesRich || [];
+  console.log('  scrape.imagesRich.length: ' + debugRich.length);
+  for (let di = 0; di < Math.min(debugRich.length, 5); di++) {
+    const im = debugRich[di];
+    console.log('    [' + di + '] ctx=' + im.ctx + ' w=' + im.w + 'x' + (im.h || '?') + ' cls=' + (im.cls || '').slice(0, 30) + ' url=' + (im.url || '').slice(0, 80));
+  }
   // 1. Logo-Extraction (V35.2: companyName Hint mitgeben)
   const logo = extractProspectLogo(scrape, company);
   if (logo) {
@@ -1171,7 +1223,12 @@ async function main() {
     if (heroNeedsAi) aiTargets.push({ role: 'hero', aspect: '16:9', prompt: `Editorial hero for ${profile.cluster_name} ${branche}: ${profile.image_mood}` });
     if (galleryNeedsAi && aiTargets.length < 2) aiTargets.push({ role: 'gallery', aspect: '4:5', prompt: `Detail close-up for ${branche}: ${profile.image_mood.split(',')[0]}` });
     console.log('  ai-targets: ' + aiTargets.length + ' (heroNeed=' + heroNeedsAi + ' galleryNeed=' + galleryNeedsAi + ')');
-    for (const t of aiTargets.slice(0, 2)) {
+    for (let ti = 0; ti < Math.min(aiTargets.length, 2); ti++) {
+      const t = aiTargets[ti];
+      if (ti > 0) {
+        // V35.3: 3s Sleep zwischen Calls (Rate-Limit-Schutz nach 429-Bug)
+        await new Promise(r => setTimeout(r, 3000));
+      }
       const aiUrl = await generateAiImage(t.prompt, profile.palette, t.aspect, 60_000);
       if (aiUrl) {
         globalThis.__VFS_AI_POOL.push({ url: aiUrl, role: t.role, prompt: t.prompt });
@@ -1213,7 +1270,7 @@ async function main() {
       branche_cluster: profile.slug,
       signature_effect: profile.signature_name,
       design_thesis: 'V35.2 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
-      prompt_version: 'v35_2_lazyload_logo_2026-05-06',
+      prompt_version: 'v35_3_pool_hierarchy_2026-05-06',
     });
     if (SLACK_ALERTS_WEBHOOK) {
       await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl} | profile=${profile.slug} auth=${(globalThis.__VFS_AUTHENTIC_POOL||[]).length} ai=${(globalThis.__VFS_AI_POOL||[]).length}` }) }).catch(()=>{});
@@ -1258,10 +1315,10 @@ async function main() {
     lifecycle_stage: sendRes.sent ? 'preview_sent' : 'deployed',
     branche_cluster: profile.slug,
     signature_effect: profile.signature_name,
-    design_thesis: 'V35.1 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+    design_thesis: 'V35.3 Pool-Hierarchy: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'v35_2_lazyload_logo_2026-05-06',
+    prompt_version: 'v35_3_pool_hierarchy_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
