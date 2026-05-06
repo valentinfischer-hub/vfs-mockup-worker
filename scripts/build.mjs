@@ -1352,6 +1352,54 @@ async function buildIteration(sys, usr, html, verifyResult, profile) {
   return html2.startsWith('<!DOCTYPE') ? html2 : '<!DOCTYPE html>\n' + html2;
 }
 
+// V36.8 Final-Webdesigner-Pass: Senior-Webdesigner liest die finale Page + fixt alle Bugs
+async function finalDesignerPass(html, profile, prospect) {
+  console.log('V36.8 STEP D Final-Webdesigner-Pass start');
+  const sys = `Du bist Senior Webdesigner mit 15 Jahren Editorial-Web-Erfahrung. Du erhaeltst eine fertige HTML-Seite und sollst sie als FINAL-PASS auf Premium-Awwwards-Niveau bringen.
+
+DEIN AUFTRAG:
+1. Lies die HTML komplett durch
+2. Identifiziere ALLE Probleme: halbfertige Sektionen, fehlende Captions auf Galerie-Bildern, generische Texte, leere oder zu duenne Sektionen, Layout-Bugs, fehlende Sub-Quotes, Sektionen ohne Eyebrow, fake Telefonnummern, isolierte Sektionen ohne Uebergaenge, fehlende Dark-Section, fehlende Mini-CTAs auf Service-Cards, 1-Wort-Specialty bei Team
+3. FIXE alle Probleme direkt im HTML
+
+FIX-DIREKTIVEN (V36.7+ Min-Wort-Limits):
+- Galerie min 60 Worte + JEDES Bild MUSS sichtbare figcaption haben (Pattern "[Was] · [Atmosphaere] · [Detail]")
+- Team min 90 Worte: pro Person 2-Satz-Specialty (max 30 Worte) + Years-of-Experience-Eyebrow
+- Leistungen min 130 Worte: pro Service-Card Mini-CTA "Termin fuer [Service]" zu Calendly
+- Hero min 60 Worte: Eyebrow + Hauptquote + Sub-Quote + Stats
+- Reviews min 150 Worte: 6 Testimonials mit je 30+ Worte Quote + Vorname-aus-Region
+- FAQ min 180 Worte: 5+ Fragen mit je 30+ Worte Antwort
+- Standort min 80 Worte: Adresse + OEV-Linie/Haltestelle + Auto + Mail klickbar + Oeffnungszeiten + Maps-iframe (PFLICHT)
+- Mind. 1 Dark-Section mit background:var(--dark) + Texte var(--light)
+- Mind. 3 von 5 Visuelle-Uebergaenge: Marquee/Vertical-Eyebrow/Quote-Block-fullbleed/Stat-Marquee/Image-Bridge
+- JEDE Section: Eyebrow + H2 + Sub-Quote (1-2 Saetze max 25 Worte)
+- Telefonnummern: nur wenn aus Scrape-Daten echte da war, sonst weg lassen (NIE fake-Nummer)
+- Galerie-Captions sichtbar (figcaption max 8 Worte)
+- Forbidden-Words HARD-STOP (siehe Profile-Voice ${profile.voice})
+- Schweizer Hochdeutsch ss statt sz, echte Umlaute aeoeue, Sie-Form, keine Em-Dashes
+
+Profile: ${profile.slug} (${profile.cluster_name}). Color-Palette: ${profile.palette.primary}/${profile.palette.accent}/${profile.palette.dark}/${profile.palette.light}/${profile.palette.neutral}.
+Voice: ${profile.voice}
+Layout-DNA: ${profile.layout_dna}
+Image-Mood: ${profile.image_mood}
+
+OUTPUT: NUR komplettes finales HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences.`;
+
+  const usr = 'Firma: ' + prospect.company + '\nBranche: ' + prospect.branche + '\n\nFINALE HTML zum reviewen + fixen:\n\n' + html;
+  try {
+    const fixed = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
+    if (fixed && fixed.length > 5000 && fixed.startsWith('<!DOCTYPE')) {
+      console.log('  ✓ Final-Pass fixed: ' + fixed.length + ' chars (input was ' + html.length + ')');
+      return fixed;
+    }
+    console.log('  ⚠ Final-Pass output too short or invalid, keeping original');
+    return html;
+  } catch (e) {
+    console.log('  ✗ Final-Pass failed: ' + e.message + ', keeping original');
+    return html;
+  }
+}
+
 // ─── Instantly Reply ─────────────────────────────────────────
 async function sendInstantlyReply(threadId, body, subject, mailCc) {
   if (!INSTANTLY_API_KEY || !threadId) return { sent: false, reason: 'no_key_or_thread' };
@@ -1591,6 +1639,22 @@ async function main() {
       break;
     }
   }
+  // V36.8 Final-Webdesigner-Pass: Senior-Webdesigner reviewt + fixt finalisiertes HTML
+  console.log('V36.8 STEP D Final-Pass start (nach ' + iterCount + ' Iter)');
+  try {
+    const fixedHtml = await finalDesignerPass(currentHtml, profile, { company, branche });
+    if (fixedHtml && fixedHtml !== currentHtml && fixedHtml.length > 5000) {
+      currentHtml = fixedHtml;
+      // Re-Deploy mit Final-Pass-Output
+      const finalUrl = await netlifyDeploy(slug, { 'index.html': currentHtml, 'seite2.html': seite2Html });
+      console.log('  ✓ Final-Pass redeploy ok: ' + finalUrl);
+    } else {
+      console.log('  ⚠ Final-Pass keine Aenderung, original bleibt');
+    }
+  } catch (e) {
+    console.log('  ✗ Final-Pass crashed: ' + e.message + ', original bleibt');
+  }
+
   if (visualResult.total !== null && visualResult.total < ITER_THRESHOLD) {
     console.log('V35.5 Visual-Verify: nach ' + iterCount + ' Iter immer noch unter Threshold (' + visualResult.total + '/' + visualResult.max + '). Slack-Alert.');
     if (SLACK_ALERTS_WEBHOOK) {
