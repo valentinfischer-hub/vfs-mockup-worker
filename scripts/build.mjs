@@ -1,6 +1,10 @@
-// vfs-mockup-worker · Premium v3.5 Cloud-Builder
+// vfs-mockup-worker · Premium V35 Cloud-Builder (Sub-Profile-DNA)
 // GitHub Actions Runtime · Node 20+ ESM
 // Triggered via workflow_dispatch oder repository_dispatch mit mockup_id
+// V35 Changes (2026-05-06): Branche-Sub-Profile-Lookup, fixe Color-Palette pro Profil,
+// Layout-DNA + Hero-Pattern + Voice + Image-Treatment fix, Pflicht-Code-Snippets
+// fuer Signature-Effekte, 5 Pflicht-Layout-Muster (Asymm-Split, Sticky-Caption,
+// Vertical-Eyebrow, Bento-Grid, Marquee), positive Sprach-Direktive, Story-Arc.
 
 import Anthropic from '@anthropic-ai/sdk';
 import puppeteer from 'puppeteer';
@@ -21,6 +25,362 @@ const {
   CLOUDINARY_CLOUD_NAME = 'dlitscucm',
   SLACK_ALERTS_WEBHOOK,
 } = process.env;
+
+// =====================================================================
+// === V35 BRANCH-SUB-PROFILE-DNA (2026-05-06) ==========================
+// =====================================================================
+// Pro Branche: Color-Palette (5 hex), Layout-DNA, Image-Mood, Voice,
+// Image-Treatment, Cert-Badges, Signature-Effekt, Fontshare-Pairing.
+// Lookup via Regex-Map auf Branche-String. Cluster-Defaults als Fallback.
+const BRANCH_PROFILES = {
+  // ── Cluster E · Medizin/Wellness ────────────────────────────────────
+  E1_physio: {
+    cluster: 'E', cluster_name: 'Medizin/Wellness',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#2d4a3a', accent: '#6b8e7f', dark: '#1a2820', light: '#f4f1ec', neutral: '#c9a48a' },
+    layout_dna: 'Editorial-Magazin mit asymmetrischen 60/40-Splits, Sticky-Side-Caption mit vertikaler Eyebrow-Typo, Hero-Quote ueber Fullbleed-Body-Detail-Bild, Bento-Galerie 1 gross + 3 klein',
+    image_mood: 'Bewegung in Stille, Haende-am-Patienten Detail Macro, neutrale Praxis-Raeume mit Pflanzen, koerperzentriert nicht klinisch, Therapeut-Blick fokussiert',
+    voice: 'Persoenlich, praesent, anatomisch praezise, lokal verankert. Verben: zuhoeren, begleiten, loesen, aktivieren, lindern, mobilisieren',
+    treatment: 'Duotone Sage ueber Body-Detail-Bilder mix-blend-mode multiply, Aspect 4:5 Hero, 16:9 Section, runde Edges 12px',
+    badges: ['EMR', 'ASCA', 'Krankenkassen anerkannt', 'Physioswiss Mitglied'],
+    hero_pattern: 'Stille-Verspechen-Quote im Editorial-Italic ueber Body-Macro-Bild, daneben kleines Stat-Cluster',
+  },
+  E2_kosmetik: {
+    cluster: 'E', cluster_name: 'Medizin/Wellness',
+    signature_effekt: 2, signature_name: 'WebGL-Distortion',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#3d2a2a', accent: '#d4a896', dark: '#1c0f0f', light: '#faf3ef', neutral: '#e8c5b3' },
+    layout_dna: 'Premium-Brand-Magazin mit Center-Stage-Hero, Bento-Grid-Leistungen, Marquee-Ribbon mit Treatment-Namen, Sticky-Booking-Bar bottom mobile',
+    image_mood: 'Haende, Hautstruktur Macro, sanft erleuchtete Behandlungsraeume, Produktdetails, weibliche Rituale, Aesthetik nicht Cosmetic, warme Ueberbelichtung',
+    voice: 'Sinnlich, kuratiert, ritualhaft, vertrauensvoll. Verben: spueren, ankommen, pflegen, regenerieren, beleben, ausgleichen',
+    treatment: 'Soft-Sepia-Tint, Aspect 4:5 Portrait-Hero, runde Edges 24px, Grain-Overlay subtle',
+    badges: ['BSC anerkannt', 'Bio-zertifiziert', '10+ Jahre Erfahrung', 'Premium-Marken'],
+    hero_pattern: 'Center-Stage-Hero mit grosser Italic-Headline ueber Hand-Macro, Marquee-Ribbon mit Treatment-Namen direkt unter Hero',
+  },
+  E3_yoga: {
+    cluster: 'E', cluster_name: 'Medizin/Wellness',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#3a3528', accent: '#a89968', dark: '#1f1c14', light: '#faf6ec', neutral: '#d4c4a4' },
+    layout_dna: 'Atmungs-Layout mit ueppigem Whitespace, vertikalen Section-Eyebrows, Hero ohne Bild nur Mesh-Gradient mit Letter-Reveal-Quote, Stundenplan-Tabelle als Editorial-Grid',
+    image_mood: 'Asana-Silhouetten, Studio-Holz-Boden, Morgenlicht durchs Fenster, Atmen-Geste, Zen-Stille',
+    voice: 'Ruhig, einladend, atemzentriert. Verben: atmen, ankommen, halten, oeffnen, balancieren',
+    treatment: 'Sand-Tint mix-blend-mode soft-light, Aspect 1:1 oder 4:5 Portrait, max 60% Saturation',
+    badges: ['Yoga Alliance', 'Yogalehrer-Verband Schweiz', 'Eingeweiht in der Tradition'],
+    hero_pattern: 'Mesh-Gradient-Hero ohne Bild mit slow-letter-reveal Quote, Stundenplan-Preview direkt unten',
+  },
+  E4_zahnarzt: {
+    cluster: 'E', cluster_name: 'Medizin/Wellness',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#1f3a4a', accent: '#7ba8b8', dark: '#0d1d27', light: '#f4f8fa', neutral: '#c4d4dc' },
+    layout_dna: 'Klar-strukturiert-Editorial mit asymmetrischer Hero (links Headline + Stats, rechts Fullbleed-Behandlungsraum), Behandlungs-Bento-Grid, Schritt-fuer-Schritt-Erstbesuch-Storyboard',
+    image_mood: 'Moderne Praxis-Architektur, Behandlungsraum-Detail, Patient-laechelt-natuerlich, kein Werbe-Stock, technisch praezise',
+    voice: 'Praezise, beruhigend, kompetent, transparent. Verben: erklaeren, schonen, erhalten, korrigieren, vorbeugen',
+    treatment: 'Cool-Cyan-Tint subtle, Aspect 16:9 Section, runde Edges 8px, klare Linien',
+    badges: ['SSO Mitglied', 'Schweizerische Zahnaerzte-Gesellschaft', 'Krankenkassen anerkannt', 'CEREC-zertifiziert'],
+    hero_pattern: 'Asymm-Hero 55/45 mit grosser Headline links + Mesh-Gradient-Akzent + Stats, rechts Praxisraum-Bild',
+  },
+  // ── Cluster F · Lokales KMU ─────────────────────────────────────────
+  F1_coiffeur: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 2, signature_name: 'WebGL-Distortion',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#2a2018', accent: '#b8956b', dark: '#15100b', light: '#f7f1e8', neutral: '#d4b896' },
+    layout_dna: 'Atelier-Editorial mit Center-Stage-Hero, asymmetrischen 70/30 Service-Splits, Marquee-Ribbon mit Cuts, Sticky-Side-Caption "seit Jahr X"',
+    image_mood: 'Kopf-Detail Macro, Schere-im-Spiegel, Hair-Texture, warmes Innenlicht, kein Werbe-Smile, Konzentration des Stylisten',
+    voice: 'Lokal, ehrlich, handwerklich, mit Charakter. Verben: schneiden, formen, zuhoeren, beraten, anpassen',
+    treatment: 'Warm-Sepia mix-blend-mode multiply, Aspect 4:5 Portrait, Grain-Overlay 8% opacity',
+    badges: ['Schweizer Coiffeur-Verband', 'Davines-Partner', 'Bio-Coloration'],
+    hero_pattern: 'Center-Stage Big-Italic-Headline ueber Hair-Macro mit WebGL-Distortion, Marquee unter Hero mit Cut-Names',
+  },
+  F2_garagist: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#1c2530', accent: '#d97742', dark: '#0c1118', light: '#f1f3f5', neutral: '#a8b4c0' },
+    layout_dna: 'Industrial-Editorial mit asymmetrischen 60/40-Splits, Hero in Werkstatt-Halle, Stat-Bar mit km/Reparaturen, Service-Grid mit Icons + Werkstatt-Bildern',
+    image_mood: 'Werkstatt-Boden, Werkzeug-Detail, Mechaniker-Hand-an-Motor, Werkstatt-Halle-Architektur, Auto-Detail-Macro',
+    voice: 'Direkt, kompetent, vertrauensvoll, lokal. Verben: pruefen, reparieren, warten, beraten, garantieren',
+    treatment: 'Cool-Steel-Tint, Aspect 16:9 Section, scharfe Edges 4px, hoher Kontrast',
+    badges: ['AGVS Mitglied', 'TCS-empfohlen', 'Auto Schweiz qualifiziert', 'Marken-Servicepartner'],
+    hero_pattern: 'Asymm-Hero 60/40 mit Werkstatt-Halle-Image + grosser Headline links, Stat-Bar bottom-Hero (Anzahl Marken / Jahre / Fahrzeuge)',
+  },
+  F3_maler: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#3a2818', accent: '#c98a4a', dark: '#1d130a', light: '#f8f1e8', neutral: '#d4b896' },
+    layout_dna: 'Handwerk-Editorial mit Hero-Pinselstrich-Detail, Vorher-Nachher-Slider als Hauptmoment, Bento-Galerie ausgefuehrte Projekte, Material-Karte mit Hersteller-Logos',
+    image_mood: 'Pinsel-Detail Macro, Wandtextur, Maler-am-Werk konzentriert, fertig-gestrichener-Raum mit Licht, Farbenfaecher',
+    voice: 'Handwerklich, sorgfaeltig, lokal, zuverlaessig. Verben: streichen, vorbereiten, beraten, beschuetzen (Material), erneuern',
+    treatment: 'Warm-Erdton-Tint, Aspect 3:4 Portrait fuer Werks-Bilder, 16:9 fuer Raeume',
+    badges: ['Schweizer Maler-Verband', 'Sikkens-Partner', 'Biomineralisch zertifiziert'],
+    hero_pattern: 'Hero mit Pinselstrich-Macro + Variable-Font-Reveal-Headline, Vorher-Nachher-Slider als Section 2',
+  },
+  F4_sanitaer: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#1c3038', accent: '#5a8b9c', dark: '#0c161b', light: '#f0f4f6', neutral: '#a8b8bf' },
+    layout_dna: 'Klar-Editorial mit asymmetrischer Hero, 24/7-Notdienst-Eyebrow prominent, Service-Grid mit Bauteil-Bildern, Stundenplan-Erreichbarkeit als Tabelle',
+    image_mood: 'Armatur-Detail Macro, Badezimmer-Architektur fertig, Sanitaer-am-Werk konzentriert, Werkzeug-Tasche',
+    voice: 'Direkt, schnell-erreichbar, kompetent, lokal. Verben: reparieren, erneuern, warten, installieren, beheben',
+    treatment: 'Cool-Steel-Tint subtle, Aspect 16:9 fuer Raeume, 1:1 fuer Werkzeug',
+    badges: ['SuissePlumb', 'Suissetec Mitglied', '24/7 Notdienst', 'Garantie-Versprechen'],
+    hero_pattern: 'Asymm-Hero 55/45, Notdienst-Eyebrow + Telefonnummer prominent in Hero, Stat-Bar mit Reaktionszeit',
+  },
+  F5_schreiner: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#3a2c1c', accent: '#a8804a', dark: '#1c150c', light: '#f7f0e4', neutral: '#d4b896' },
+    layout_dna: 'Atelier-Editorial mit Holzmaserung-Hero, Werks-Galerie als Bento-Grid, Material-Story-Sticky-Side, Massanfertigungs-Prozess als Storyboard',
+    image_mood: 'Holzmaserung Macro, Werkstatt mit Spaenen, Schreiner-Hand-am-Werkstueck, fertige Moebel im Raum, Holz-Detail',
+    voice: 'Handwerklich, geduldig, mit Liebe zum Material, lokal. Verben: schreinern, formen, schleifen, anpassen, gestalten',
+    treatment: 'Warm-Walnut-Tint, Aspect 3:4 Portrait fuer Werks-Detail, 16:9 fuer Raeume mit Moebel',
+    badges: ['VSSM Schreiner-Verband', 'FSC-zertifiziertes Holz', 'Lehrbetrieb seit Jahr X'],
+    hero_pattern: 'Hero mit Holzmaserung-Fullbleed + Variable-Font-Reveal-Headline ueber dem Holz, Werks-Bento direkt unten',
+  },
+  F6_optiker: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 2, signature_name: 'WebGL-Distortion',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#2a2530', accent: '#9c8b8b', dark: '#15101a', light: '#f5f3f7', neutral: '#c8c0c8' },
+    layout_dna: 'Premium-Brand-Editorial mit Brillen-Macro-Hero, Marken-Marquee, Bento-Grid mit Brillen-Modellen, Service-Story (Sehtest, Beratung, Anpassung)',
+    image_mood: 'Brille-Macro im Sonnenlicht, Geschaeft-Innenraum mit Brillen-Wand, Optiker-mit-Kunde in Beratung, Augenuntersuchung',
+    voice: 'Praezise, beratend, stilsicher, lokal. Verben: sehen, beraten, anpassen, entdecken, schaerfen',
+    treatment: 'Premium-Glow-Tint, Aspect 4:5 Portrait fuer Brillen, 16:9 fuer Geschaeft, runde Edges 16px',
+    badges: ['Optikverband Schweiz', 'Augenoptik-zertifiziert', 'Premium-Brand-Partner'],
+    hero_pattern: 'Center-Stage-Hero mit Brillen-Macro + Italic-Headline, Marken-Marquee unter Hero',
+  },
+  F7_maurer: {
+    cluster: 'F', cluster_name: 'Lokales KMU',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#3a3530', accent: '#c98a5a', dark: '#1c1814', light: '#f5f0e8', neutral: '#bca896' },
+    layout_dna: 'Industrial-Editorial mit Bau-Halle-Hero, Projekte-Slider mit Vorher-Nachher, Massnahmen-Grid (Mauer, Bodenplatte, Sanierung), Stat-Bar Jahre Bauwerke',
+    image_mood: 'Mauer-Detail Macro, Baustelle-Architektur, Maurer-am-Werk, Beton-frisch-glatt, Bauwerk-fertig',
+    voice: 'Solide, terminsicher, lokal, ehrlich. Verben: mauern, bauen, sanieren, fundamentieren, verfugen',
+    treatment: 'Beton-Grau-Tint, Aspect 16:9 fuer Bauwerke, scharfe Edges 4px',
+    badges: ['SBV Schweizer Baumeister', 'EKAS-zertifiziert', 'Lehrbetrieb seit Jahr X'],
+    hero_pattern: 'Asymm-Hero 60/40 mit Bauwerk-Image + Headline, Stat-Bar mit Anzahl Bauwerke',
+  },
+  // ── Cluster D · Beratung ────────────────────────────────────────────
+  D1_treuhand: {
+    cluster: 'D', cluster_name: 'Beratung',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#1f2935', accent: '#8a9bac', dark: '#0c1018', light: '#f4f6f9', neutral: '#bcc4cc' },
+    layout_dna: 'Editorial-Magazin mit asymmetrischen Splits, Sticky-Side-Caption mit Werten, Service-Story (Buchhaltung, Steuern, Beratung), Stat-Bar Jahre/Mandate',
+    image_mood: 'Buero-Architektur modern, Hand-mit-Stift, Dokumente-Detail, Berater-im-Gespraech, Schreibtisch-Detail',
+    voice: 'Praezise, vertrauensvoll, langfristig, persoenlich. Verben: betreuen, optimieren, planen, begleiten, klaren',
+    treatment: 'Cool-Slate-Tint, Aspect 4:5 Portrait fuer Personen, 16:9 fuer Buero, runde Edges 8px',
+    badges: ['EXPERTsuisse', 'Treuhand|Suisse Mitglied', 'FINMA-konform', 'Mandat seit Jahr X'],
+    hero_pattern: 'Hero mit grosser Variable-Font-Reveal-Headline + ruhigem Buero-Bild, Stat-Bar mit Mandaten/Jahren',
+  },
+  D2_anwalt: {
+    cluster: 'D', cluster_name: 'Beratung',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#2a2018', accent: '#a8804a', dark: '#15100b', light: '#f7f1e8', neutral: '#bca896' },
+    layout_dna: 'Editorial-Magazin mit asymmetrischen 70/30 Splits, Sticky-Side-Caption mit Rechtsgebieten, Anwalt-Profile als Magazin-Spread, Mandat-Stories als Editorial-Quotes',
+    image_mood: 'Buecherregal-Detail, Anwaltsrobe-im-Hintergrund subtil, Hand-mit-Vertrag, Buero-Architektur klassisch-modern',
+    voice: 'Klar, kompetent, diskret, mandantenorientiert. Verben: vertreten, durchsetzen, beraten, schuetzen, verhandeln',
+    treatment: 'Warm-Brown-Tint subtle, Aspect 4:5 Portrait fuer Anwaelte, runde Edges 8px',
+    badges: ['SAV Mitglied', 'Patentanwalt-zertifiziert', 'Mandat seit Jahr X'],
+    hero_pattern: 'Asymm-Hero 70/30 mit grosser ernster Headline, Italic-Sub, Anwalt-Portrait rechts',
+  },
+  D3_coach: {
+    cluster: 'D', cluster_name: 'Beratung',
+    signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#2c3a2c', accent: '#8c9c7c', dark: '#161e16', light: '#f4f7f2', neutral: '#c4ccbc' },
+    layout_dna: 'Editorial-Memoir mit Hero-Quote, Sticky-Side-Caption mit Werten, Persoenliche-Story-Section, Methoden-Bento-Grid',
+    image_mood: 'Person-im-Gespraech, Notizbuch-mit-Notizen, ruhiger Raum mit Kamin oder Park-Aussicht, Hand-Geste',
+    voice: 'Reflektiert, empathisch, klar, persoenlich. Verben: zuhoeren, klaren, oeffnen, herausfinden, begleiten',
+    treatment: 'Warm-Forest-Tint, Aspect 4:5 Portrait, runde Edges 12px',
+    badges: ['ICF zertifiziert', 'Systemischer Coach', 'BSO Mitglied'],
+    hero_pattern: 'Hero mit grosser Italic-Quote, Variable-Font-Reveal Subtitel, Coach-Portrait rechts in 4:5',
+  },
+  // ── Cluster A · Editorial/Atelier ───────────────────────────────────
+  A1_architekt: {
+    cluster: 'A', cluster_name: 'Editorial/Atelier',
+    signature_effekt: 1, signature_name: 'Splat',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#1a1814', accent: '#b8a878', dark: '#0a0908', light: '#f4f1ec', neutral: '#c4b8a8' },
+    layout_dna: 'Awwwards-Editorial mit Splat-3D-Hero, Projekte als Magazin-Spreads asymm. 60/40, Vertikale Section-Eyebrows, Sticky-Side-Captions mit Bauphase-Notes, Bento-Grid Materialdetails',
+    image_mood: 'Architektur-Modell-3D-scan, Bauteil-Detail Macro, Lichtfuehrung im Raum, Material-Komposition, leere Raumszene',
+    voice: 'Konzeptuell, raeumlich, materiell, atemberaubend-zurueckhaltend. Verben: entwerfen, gestalten, formen, raeumlich-denken',
+    treatment: 'Mono-Cool-Slate, Aspect 16:9 oder Fullbleed, scharfe Edges 0px',
+    badges: ['SIA Mitglied', 'BSA aufgenommen', 'Award X gewonnen'],
+    hero_pattern: 'Splat-Modell rotiert auto im Hero-Hintergrund, daruebner Variable-Font-Reveal-Headline minimalistisch',
+  },
+  // ── Cluster B · Hospitality ─────────────────────────────────────────
+  B1_hospitality: {
+    cluster: 'B', cluster_name: 'Hospitality',
+    signature_effekt: 5, signature_name: 'Theatre.js-Scroll',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#2a1c1c', accent: '#c4905a', dark: '#150d0d', light: '#f7f0e8', neutral: '#d4b896' },
+    layout_dna: 'Theatre-Scroll-Storytelling, Hero mit Lokal-Atmosphaere, Menu/Zimmer als Bento-Grid, Booking-Flow prominent, Lokal-Geschichte als Editorial-Magazin-Spread',
+    image_mood: 'Lokal-Atmosphaere warm-erleuchtet, Detail-am-Tisch, Gast-im-Genuss, Architektur des Lokals, Region-Landschaft',
+    voice: 'Einladend, gastfreundlich, lokal-verwurzelt, sinnlich. Verben: empfangen, geniessen, willkommen-heissen, verweilen',
+    treatment: 'Warm-Glow-Tint, Aspect 16:9 fuer Lokal, 4:5 fuer Gerichte/Zimmer',
+    badges: ['Gastronomie-Verband', 'GaultMillau X Punkte', 'TripAdvisor-Award'],
+    hero_pattern: 'Theatre-Scroll-Hero mit Atmosphaere-Bild als Crossfade, Italic-Hauptheadline, Buchen-CTA prominent',
+  },
+  // ── Cluster C · Premium-Brand ───────────────────────────────────────
+  C1_premiumbrand: {
+    cluster: 'C', cluster_name: 'Premium-Brand',
+    signature_effekt: 2, signature_name: 'WebGL-Distortion',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#1c1814', accent: '#a88058', dark: '#0c0a08', light: '#f4f0ea', neutral: '#bca088' },
+    layout_dna: 'Center-Stage-Editorial mit Produkt-Distortion-Hero, Marquee mit Kollektion-Names, Bento-Grid Produkte, Manufaktur-Story als Magazin-Spread, Dunkel-Section fuer Material-Story',
+    image_mood: 'Produkt-Macro im Studiolicht, Manufaktur-Hand-am-Werk, Material-Detail Macro, Atelier-Architektur',
+    voice: 'Kuratiert, sinnlich, handwerklich-praezise, zeitlos. Verben: gestalten, fertigen, formen, kreieren, kuratieren',
+    treatment: 'Premium-Studio-Tint, Aspect 4:5 Portrait fuer Produkte, runde Edges 16px',
+    badges: ['Made in Switzerland', 'Manufaktur seit Jahr X', 'Kollektions-Award'],
+    hero_pattern: 'Center-Stage Produkt-Distortion-Hero mit Italic-Manifest-Quote, Marquee unter Hero mit Kollektion-Names',
+  },
+  // ── Cluster G · Tech/Digital ────────────────────────────────────────
+  G1_techdigital: {
+    cluster: 'G', cluster_name: 'Tech/Digital',
+    signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#1c2030', accent: '#7c8cdc', dark: '#0c0e18', light: '#f0f2f7', neutral: '#a8b0cc' },
+    layout_dna: 'Tech-Editorial mit Mesh-Gradient-Hero, Service-Bento, Case-Studies als Magazin-Spread, Process-Story als horizontaler Scroll, dunkles CTA-Section',
+    image_mood: 'UI-Mockup-Detail, Code-Editor subtil, Team-Workspace, abstrakte Mesh-Visuals, Office-Architektur',
+    voice: 'Praezise, modern, ergebnisorientiert, partnerschaftlich. Verben: entwickeln, automatisieren, skalieren, integrieren, optimieren',
+    treatment: 'Cool-Tech-Tint, Aspect 16:9 fuer UIs, runde Edges 12px',
+    badges: ['ISO 27001', 'Microsoft Partner', 'AWS Solutions Architect'],
+    hero_pattern: 'Mesh-Gradient-Fullbleed-Hero mit grosser Headline + Letter-Reveal, dunkle Service-Section direkt unten',
+  },
+  // ── Cluster Defaults (Fallback wenn kein spezifisches Sub-Profile matched) ─
+  E_default: { cluster: 'E', cluster_name: 'Medizin/Wellness', signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#2d4a3a', accent: '#6b8e7f', dark: '#1a2820', light: '#f4f1ec', neutral: '#c9a48a' },
+    layout_dna: 'Editorial mit asymmetrischen Splits, Sticky-Side-Caption, Bento-Galerie',
+    image_mood: 'Behandlungs-Detail, Praxis-Architektur, Therapeut-am-Werk',
+    voice: 'Praesent, kompetent, lokal verankert',
+    treatment: 'Sage-Duotone, Aspect 4:5 Hero',
+    badges: ['Berufsverband', 'Krankenkassen anerkannt'],
+    hero_pattern: 'Asymm-Hero mit Variable-Font-Reveal-Headline ueber Behandlungs-Detail',
+  },
+  F_default: { cluster: 'F', cluster_name: 'Lokales KMU', signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#2a2520', accent: '#b8956b', dark: '#15110d', light: '#f7f1e8', neutral: '#d4b896' },
+    layout_dna: 'Handwerk-Editorial mit asymmetrischer Hero, Werks-Bento, Storyboard-Prozess',
+    image_mood: 'Werkstatt-Detail, Hand-am-Werkstueck, fertiges Werk im Raum',
+    voice: 'Direkt, handwerklich, lokal, ehrlich',
+    treatment: 'Warm-Erdton-Tint, Aspect 16:9 Section',
+    badges: ['Berufsverband', 'Lehrbetrieb'],
+    hero_pattern: 'Asymm-Hero 60/40 mit Werks-Image und grosser Headline',
+  },
+  D_default: { cluster: 'D', cluster_name: 'Beratung', signature_effekt: 3, signature_name: 'Variable-Font Reveal',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#1f2935', accent: '#8a9bac', dark: '#0c1018', light: '#f4f6f9', neutral: '#bcc4cc' },
+    layout_dna: 'Editorial-Magazin mit asymm. Splits, Sticky-Side-Caption, Service-Story',
+    image_mood: 'Buero, Hand-mit-Stift, Berater-im-Gespraech',
+    voice: 'Praezise, vertrauensvoll, persoenlich',
+    treatment: 'Cool-Slate-Tint, Aspect 4:5 Portrait',
+    badges: ['Berufsverband', 'Mandat seit Jahr X'],
+    hero_pattern: 'Hero mit grosser Variable-Font-Reveal-Headline + ruhigem Buero-Bild',
+  },
+  A_default: { cluster: 'A', cluster_name: 'Editorial/Atelier', signature_effekt: 1, signature_name: 'Splat',
+    fontshare_pairing: 'erode + satoshi',
+    palette: { primary: '#1a1814', accent: '#b8a878', dark: '#0a0908', light: '#f4f1ec', neutral: '#c4b8a8' },
+    layout_dna: 'Awwwards-Editorial mit Splat-Hero, Magazin-Spreads, Vertikale Section-Eyebrows',
+    image_mood: 'Atelier-Architektur, Material-Komposition, Werkdetail',
+    voice: 'Konzeptuell, raeumlich, zurueckhaltend',
+    treatment: 'Mono-Cool-Slate, Fullbleed',
+    badges: ['Berufsverband', 'Award X'],
+    hero_pattern: 'Splat-Hero mit minimaler Headline',
+  },
+  B_default: { cluster: 'B', cluster_name: 'Hospitality', signature_effekt: 5, signature_name: 'Theatre.js-Scroll',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#2a1c1c', accent: '#c4905a', dark: '#150d0d', light: '#f7f0e8', neutral: '#d4b896' },
+    layout_dna: 'Theatre-Scroll-Storytelling, Bento-Grid Menue/Zimmer, Lokal-Geschichte',
+    image_mood: 'Lokal-Atmosphaere warm, Gast-Detail, Region-Landschaft',
+    voice: 'Einladend, gastfreundlich, lokal-verwurzelt',
+    treatment: 'Warm-Glow-Tint, Aspect 16:9',
+    badges: ['Gastronomie-Verband', 'GaultMillau'],
+    hero_pattern: 'Theatre-Scroll-Hero mit Atmosphaere-Bild und Italic-Hauptheadline',
+  },
+  C_default: { cluster: 'C', cluster_name: 'Premium-Brand', signature_effekt: 2, signature_name: 'WebGL-Distortion',
+    fontshare_pairing: 'clash-display + cabinet-grotesk',
+    palette: { primary: '#1c1814', accent: '#a88058', dark: '#0c0a08', light: '#f4f0ea', neutral: '#bca088' },
+    layout_dna: 'Center-Stage-Editorial mit Distortion-Hero, Marquee, Bento-Grid Produkte',
+    image_mood: 'Produkt-Macro Studiolicht, Manufaktur-Hand, Material-Detail',
+    voice: 'Kuratiert, handwerklich, zeitlos',
+    treatment: 'Premium-Studio-Tint, Aspect 4:5',
+    badges: ['Made in Switzerland', 'Manufaktur'],
+    hero_pattern: 'Distortion-Hero mit Italic-Manifest-Quote',
+  },
+  G_default: { cluster: 'G', cluster_name: 'Tech/Digital', signature_effekt: 4, signature_name: 'Mesh-Gradient + Letter-Reveal',
+    fontshare_pairing: 'cabinet-grotesk + satoshi',
+    palette: { primary: '#1c2030', accent: '#7c8cdc', dark: '#0c0e18', light: '#f0f2f7', neutral: '#a8b0cc' },
+    layout_dna: 'Tech-Editorial mit Mesh-Gradient-Hero, Service-Bento, Case-Studies',
+    image_mood: 'UI-Mockup, Team-Workspace, Mesh-Visuals',
+    voice: 'Praezise, ergebnisorientiert, partnerschaftlich',
+    treatment: 'Cool-Tech-Tint, Aspect 16:9',
+    badges: ['ISO 27001', 'Tech-Partner'],
+    hero_pattern: 'Mesh-Gradient-Hero mit grosser Headline + Letter-Reveal',
+  },
+};
+
+function lookupProfile(branche, clusterHint) {
+  const b = (branche || '').toLowerCase();
+  const map = [
+    [/physio|physiotherapie/, 'E1_physio'],
+    [/kosmetik|beauty|aesthet|spa/, 'E2_kosmetik'],
+    [/yoga|pilates|meditation/, 'E3_yoga'],
+    [/zahn|dentist|dental|kiefer/, 'E4_zahnarzt'],
+    [/coiffeur|hair|friseur|barber/, 'F1_coiffeur'],
+    [/garage|garagist|auto.?werkstatt|mechan/, 'F2_garagist'],
+    [/maler|maler.?betrieb|painter/, 'F3_maler'],
+    [/sanitar|sanitaer|installateur|plumber/, 'F4_sanitaer'],
+    [/schreiner|carpenter|tischler/, 'F5_schreiner'],
+    [/optiker|brillen|optic/, 'F6_optiker'],
+    [/maurer|bau.?untern|bau.?gesch|construction/, 'F7_maurer'],
+    [/treuhand|fiduciary|buchhaltung/, 'D1_treuhand'],
+    [/anwalt|kanzlei|legal|rechtsanw/, 'D2_anwalt'],
+    [/coach/, 'D3_coach'],
+    [/architekt|architect/, 'A1_architekt'],
+    [/galerie|gallery|museum/, 'A1_architekt'],
+    [/hotel|gastro|restaurant|cafe/, 'B1_hospitality'],
+    [/manufaktur|atelier|schmuck|mode|jewelr/, 'C1_premiumbrand'],
+    [/tech|software|digital|saas/, 'G1_techdigital'],
+  ];
+  for (const [re, slug] of map) if (re.test(b)) return { slug, ...BRANCH_PROFILES[slug] };
+  // Cluster-Default
+  const c = (clusterHint || 'F').toUpperCase().charAt(0);
+  const def = BRANCH_PROFILES[c + '_default'] || BRANCH_PROFILES.F_default;
+  return { slug: c + '_default', ...def };
+}
+
+// V35 Pflicht-Code-Snippets pro Signature-Effekt (LLM kriegt das als Anchor)
+function signatureSnippet(eff) {
+  switch (eff) {
+    case 1: return `// SPLAT (Three.js gsplat) — kleiner 3D-Splat im Hero-Hintergrund\n<script type="module">\n  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js';\n  // Setup: Scene + PerspectiveCamera + WebGLRenderer auf canvas#hero-splat\n  // Subtle auto-rotate. opacity 0.4. prefers-reduced-motion → static.\n<\/script>\n<canvas id="hero-splat" style="position:absolute;inset:0;opacity:.4;pointer-events:none;z-index:0"></canvas>`;
+    case 2: return `// WEBGL-DISTORTION (Curtains.js) — sanfter Wave auf Hero-Bild bei Scroll\n<script src="https://cdn.jsdelivr.net/npm/curtainsjs@8.1.5/dist/curtains.umd.min.js"><\/script>\n<script>\n  const curtains = new window.Curtains.Curtains({container: 'curtains-canvas'});\n  // Plane mit hero img, fragment-shader: float wave = sin(uv.y * 8.0 + uTime) * .03;\n  // Auto-pause bei prefers-reduced-motion.\n<\/script>`;
+    case 3: return `// VARIABLE-FONT REVEAL (Splitting + Recursive) — Letter-Glyph-Achsen anim\n<style>\n  @import url('https://fonts.googleapis.com/css2?family=Recursive:slnt,wght@-15..0,300..1000&display=swap');\n  .reveal .char{font-family:'Recursive',serif;font-variation-settings:"wght" 300, "slnt" -15;display:inline-block;opacity:0;transform:translateY(.4em);transition:opacity .9s ease, transform .9s cubic-bezier(.2,.8,.2,1), font-variation-settings .9s ease;transition-delay:calc(var(--char-index) * .04s)}\n  .reveal.is-revealed .char{opacity:1;transform:none;font-variation-settings:"wght" 700, "slnt" 0}\n<\/style>\n<h1 class="reveal" data-splitting>Headline-Text</h1>\n<script>Splitting();new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('is-revealed')),{threshold:.4}).observe(document.querySelector('.reveal'));<\/script>`;
+    case 4: return `// MESH-GRADIENT + LETTER-REVEAL (Whatamesh + Splitting)\n<canvas id="mesh-grad" style="position:absolute;inset:0;z-index:0;opacity:.7"></canvas>\n<script type="module">\n  import {Gradient} from 'https://unpkg.com/whatamesh@1.1/dist/whatamesh.es.js';\n  const g=new Gradient();g.initGradient('#mesh-grad');\n  // Farben in CSS-Variablen --gradient-color-1..4 setzen aus Profile.palette\n<\/script>`;
+    case 5: return `// THEATRE.JS-SCROLL — choreografierter Hero-Crossfade ueber 3 Bilder\n<script type="module">\n  import core from 'https://cdn.jsdelivr.net/npm/@theatre/core@0.7/dist/core.es.js';\n  // Project + Sheet + Object mit opacity-anim. ScrollListener mappt scrollY auf timeline.position.\n<\/script>`;
+    default: return '// (Kein Signature-Snippet, freie Wahl)';
+  }
+}
+
+// V35 Master-System-Prompt-Builder
+function buildV35SystemPrompt(profile, mockupId, supabaseUrl) {
+  const p = profile;
+  const pal = p.palette;
+  const sig = signatureSnippet(p.signature_effekt);
+  return `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.\n\nGRUNDPRINZIP: Editorial vor Marketing. Whitespace vor Dichte. Konkretheit vor Floskel. Diese Site soll wirken wie ein gedrucktes Magazin im Browser, nicht wie ein generischer KMU-Section-Stack. Sub-Profile: ${p.slug || p.cluster + '_default'} (${p.cluster_name}).\n\nLAYOUT-DNA (PFLICHT-INTERPRETATION):\n${p.layout_dna}\n\nHERO-PATTERN (PFLICHT):\n${p.hero_pattern}\n\nDIESE 5 LAYOUT-MUSTER SIND PFLICHT (mind. 4 von 5 muessen vorkommen):\n1. Asymmetrischer Editorial-Split (60/40 oder 70/30, niemals 50/50 ausser fuer Vergleichs-Gegenstellung)\n2. Sticky-Side-Caption: Text bleibt sticky waehrend Bild/Content scrollt (verlaengert die emotionale Verweildauer)\n3. Magazin-Eyebrow vertikal: writing-mode:vertical-rl auf 1-2 Section-Labels fuer Editorial-Charakter\n4. Bento-Grid mit Variable-Hoehen (1 grosse + 2-3 kleine Cards in einer Sektion)\n5. Marquee-Ribbon: horizontaler Lauftext zwischen 2 Sections als visueller Atemzug\n\nWHITESPACE-WERTE (PFLICHT, KEINE ABWEICHUNG):\n- Section-Padding: 160px desktop / 96px mobile vertikal (padding-block)\n- Container max-width: 1320px, padding-inline 32px desktop / 20px mobile\n- H1-Block-Margin-Bottom: 48px desktop / 32px mobile\n- Inter-Section-Margin: 0 (Padding macht den Atem)\n- Hero-Hoehe: min(85vh, 800px) desktop / 78vh mobile, NIEMALS 100vh\n\nTYPOGRAFIE (PFLICHT):\n- Display-Font: ${p.fontshare_pairing.split('+')[0].trim()} fuer H1-H2 (Fontshare)\n- Body-Font: ${p.fontshare_pairing.split('+')[1].trim()} fuer H3-H6 + p (Fontshare)\n- H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, font-weight 600-700\n- H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05\n- H3: 1.5-1.75rem, weight 500\n- Body: 17px desktop / 16px mobile, line-height 1.55\n- Eyebrow: 0.78rem, uppercase, letter-spacing 0.18em, weight 500\n- Display-Quote: italic, max 2 Zeilen, in dunklen Sections weiss\n\nCOLOR-PALETTE (PFLICHT, KEIN HEX ERFINDEN, NUR DIESE 5):\n--primary: ${pal.primary}\n--accent: ${pal.accent}\n--dark: ${pal.dark}\n--light: ${pal.light}\n--neutral: ${pal.neutral}\nVerwende: primary fuer Body-Text + primaere Buttons + Logo. accent fuer Hover-States + einzelne Headlines + Akzent-Linien. dark fuer mind. 1 Dark-Section background (z.B. ueber-uns oder cta). light als Default Page-Background. neutral fuer Stat-Numbers + Eyebrow + dezente Trennlinien.\n\nIMAGE-BEHANDLUNG (PFLICHT):\n${p.treatment}\nImage-Mood-Direktive: ${p.image_mood}\nAspect-Ratio per Sektion fix:\n- Hero: aus hero_pattern\n- Leistungen-Cards: 4:5 Portrait\n- Team: 3:4 Portrait\n- Galerie: gemischt 1:1, 3:4, 16:9 in Bento-Grid\n- Image-Caption: vertikal sticky neben Bild ODER overlay-bottom mit grain (8% noise)\nPflicht: Alle Section-Bilder haben Editorial-Caption-Klasse mit Photo-Credit oder Quote.\n\nCONTENT-STORYTELLING (PFLICHT):\nVoice: ${p.voice}\nStory-Arc ueber die 9 Pflicht-Sektionen + Footer:\n1 #hero: Versprechen in 1 Satz, max 12 Worte. Nicht Was-wir-tun, sondern Wie-es-sich-anfuehlt. Sub-Headline 1 Satz max 18 Worte.\n2 #trust: Konkrete Zahlen (Jahre, Patienten/Kunden, Bewertung), Cert-Badges aus Profile: ${p.badges.join(', ')}\n3 #ueber-uns: Person mit Foto, max 80 Worte Story, 3 Werte als Eyebrow-Cards\n4 #leistungen: 3-4 Service-Cards. Pro Card: Name (max 4 Worte), 1-Satz-Was-passiert (max 18 Worte), 3-Punkt-Liste, KEIN Pricing\n5 #booking: 3-Step Interactive State-Machine (Service > Therapeut/Stylist > Slot) mit Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt. Calendly-Link als Backup.\n6 #team: 3-4 Cards mit Foto 3:4, Name, Rolle, Specialty (max 6 Worte)\n7 #reviews: Mind. 6 Testimonials mit Aggregate-Score, lokal (Vornamen aus Region passend), 5-Sterne, Avatar\n8 #standort: Adresse, OEV-Anbindung, Auto, Tel, Mail, Oeffnungszeiten + Google-Maps-iframe\n9 #faq: 5+ branchenspezifische Fragen Akkordion\n10 footer: Adresse, Oeffnung, Rechtliches\n\nPOSITIVE SPRACH-DIREKTIVE (PFLICHT):\n- Saetze max 18 Worte, Durchschnitt 12 Worte\n- Aktive Verben aus Profile.voice statt passive Allgemeinplaetze\n- KEIN "Wir bieten ...", stattdessen "Bei [Firma] [konkrete Aktion]"\n- Lokaler Bezug Pflicht: Mind. 3x Stadt/Quartier/Region erwaehnen\n- Branche-Vokabular aus Profile.voice nutzen, mind. 4 dieser Verben einsetzen\n- KEIN generic Filler. Wenn keine Daten vorhanden, lieber kuerzer schreiben als faken\n\nFORBIDDEN-WORDS (HARD-STOP):\nGame-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.\n\nLIBRARIES PFLICHT (CDN im Head):\n- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js\n- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js\n- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js\n- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js\n- Fontshare: https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap\n\nSIGNATURE-EFFEKT (PFLICHT mit Code-Snippet als Anchor):\n${p.signature_name} (effekt #${p.signature_effekt})\n${sig}\n\nJS-PFLICHT:\n- Lenis init mit lerp 0.08\n- Splitting() init fuer alle [data-splitting] Elemente\n- IntersectionObserver fuer [data-reveal] mit 1500ms-Fallback (visible auch bei Observer-Fail)\n- Magnetic-Button-Hover .btn-magnetic mit Motion (translate3d max 8px)\n- prefers-reduced-motion respektieren (alle Animations off)\n- Sticky-Nav scroll-shrink: bei scrollY > 80 add class .nav-shrunk\n\nGOOGLE MAPS PFLICHT-IFRAME:\n<iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>\n\nCHATBOT-WIDGET PFLICHT:\nFloating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse).\nPanel 380x520 weiss, Editorial-shadow, slide-up bei Klick.\nHeader "Chat mit [Brand]" + "Demo · 24/7 · vf-services".\n4 Chip-Fragen branchenrelevant.\nBei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).\n\nBOOKING-CTA PFLICHT:\nALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:".\nBooking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.\n\nMOBILE-FIRST PFLICHT:\nLayout primaer fuer 380px Viewport, dann hochskalieren.\nTouch-Targets min 48x48px.\nKeine Hover-only-Interaktion (alle Hovers haben tap-Variante).\nHero-Stats horizontal scrollbar bei <500px.\nNavigation als Hamburger bei <768px.\n\nSTICKY-NAV PFLICHT:\nHeader MUSS display:flex justify-content:space-between align-items:center sein.\nLogo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts.\nNIEMALS absolute positionierte Logos die Nav-Items ueberlappen.\nHeader position:sticky top:0 z-index:1000.\n\nANIMATIONS-FALLBACK PFLICHT:\nAlle scroll-triggered Animationen (fade-up, scroll-reveal, parallax) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. prefers-reduced-motion media-query als Reset.\n\nIMAGE-WHITELIST:\nIm System-Prompt findest du eine Liste VERFUEGBARE BILDER (Pexels-Pool).\nVerwende AUSSCHLIESSLICH diese URLs als img src.\nKEINE images.unsplash.com URLs erfinden.\nKEIN Cloudinary-fetch-wrap noetig.\n\nSPRACH-PFLICHT:\nSchweizer Hochdeutsch (ss statt sz). Sie-Form. Keine Em-Dashes. Keine Floskeln. Mind. 10 sichtbare Bilder. KEIN Pricing sichtbar.\n\nTRACKING-PIXEL vor </body>:\n<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">\n\nOUTPUT: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Direkt DOCTYPE.`;
+}
+// =====================================================================
+// === END V35 BRANCH-SUB-PROFILE-DNA ===================================
+// =====================================================================
 
 // === VFS PEXELS POOL (Patch A2) ===
 const PEXELS_API_KEY = process.env.PEXELS_API_KEY;
@@ -473,68 +833,11 @@ async function main() {
   // Image-Cloudinary-Wrap
   const imgs = (scrape.images || []).slice(0, 8).map(u => cld(u, 1600));
 
-  // HTML-Generation via Sonnet 4.6 mit v3.5-Prinzipien
-  const sys = `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.
-
-PFLICHT-REGELN: Schweizer Hochdeutsch (ss statt sz), Sie-Form, KEIN Pricing, KEIN Fake-Content, keine Em-Dashes, keine Floskeln. Cluster ${cluster.cluster_name}.
-
-DESIGN-STANDARDS:
-- Mind. 2 Fonts via Fontshare (Editorial-Display + Body) - siehe Pairing unten
-- H1 clamp(3.5rem,9vw,7rem), letter-spacing -0.025em
-- Body 17-18px line-height 1.5-1.6
-- Eyebrow 0.15-0.2em uppercase tracking
-- Color-Palette: primary/accent erdig/dark/light/neutral - siehe unten
-- Mind. 1 Dark-Section pro Seite
-- White-Space mutig (120px section-padding desktop, 80px mobile)
-- Container max-width 1280-1440px
-- Goldener Schnitt fuer 2-Column 1.618:1
-
-LIBRARIES PFLICHT (CDN im Head):
-- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js
-- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js
-- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js
-- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js
-- Fontshare https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap
-
-SIGNATURE-EFFEKT (NUR der vorgegebene): ${cluster.signature_name} - implementiere mit zugehoeriger Library (1 Splat:Three.js+gsplat | 2 WebGL:Curtains.js | 3 Variable-Font:Recursive | 4 Mesh:Whatamesh | 5 Theatre:theatre/core).
-
-PFLICHT-SECTIONS in dieser Reihenfolge:
-1 nav sticky (Logo + Links + CTA + Hamburger Mobile)
-2 #hero mit Signature-Effekt + H1 + Sub + 2 CTAs + Stats
-3 #trust mit Cert-Badges branchenspezifisch (Krankenkassen, Physioswiss, EMR, ESTI, SBV) + Number-Cards
-4 #ueber-uns Story/Person mit Foto + 3 Werte
-5 #leistungen Service-Cards 3-spaltig mit Bild + Tag + Liste, KEIN Pricing
-6 #booking 3-Step Interactive State-Machine (Service -> Stylist -> Slot, Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt)
-7 #team 3-4 Cards Foto 3:4 + Name + Rolle + Specialty
-8 #reviews mind. 6 Testimonials + 5-Sterne + Avatar + Aggregate-Score
-9 #standort 2-Column: Adresse/OEV/Auto/Tel/Mail/Oeffnungszeiten + Google Maps iframe
-10 #faq 5+ Fragen Akkordion branchenspezifisch
-11 #cta + Sticky Mobile CTA bottom-fixed
-12 footer (Adresse, Oeffnung, Rechtliches)
-
-GOOGLE MAPS PFLICHT: <iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>
-
-CHATBOT-WIDGET PFLICHT: Floating-Button bottom-right 60x60 (Primary-Color, Chat-Icon, dezent pulse). Panel bei Klick 380x520 (weiss, Editorial-shadow, slide-up). Header "Chat mit [Brand]" + "Demo - 24/7 vf-services". 4 Chip-Fragen branchenrelevant. Bei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).
-
-JS-PFLICHT: data-reveal Fallback-Timer 1500ms | Sticky-Nav scroll-shrink onScroll | Magnetic-Button-Hover .btn-magnetic | Lenis Smooth-Scroll init | Splitting() init fuer data-splitting | prefers-reduced-motion respektieren.
-
-FORBIDDEN-WORDS: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.
-Schweizer Hochdeutsch, ss statt sz, Sie-Form, keine Em-Dashes.
-Stil-Cluster ableiten aus Branche. Signature-Effekt: 1 von 5 (Splat/WebGL/VariableFont/MeshGradient/Theatre).
-Pflicht-Sections: Hero, Trust, Service-Cards (3, je 1 Bild), Galerie (4-8 Prospect-Bilder Masonry), Booking-Flow (3-Step), Reviews, Maps, FAQ (5+), Footer.
-
-13 MOBILE-FIRST PFLICHT: Layout primaer fuer 380px Viewport, dann hochskalieren. Touch-Targets min 48x48px. Keine Hover-only-Interaktion. Hero-Stats horizontal scrollbar bei <500px. Marquee bei <500px reduzierte speed. Navigation als Hamburger bei <768px.
-14 BOOKING-CTA PFLICHT: ALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:". Booking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.
-/* IMG_WHITELIST_INJECT */
-16 IMAGE-WHITELIST: Im System-Prompt findest du eine Liste VERFUEGBARE BILDER. Verwende AUSSCHLIESSLICH diese URLs als <img src>. KEINE images.unsplash.com URLs erfinden. KEIN Cloudinary-fetch-wrap noetig.
-17 STICKY-NAV: Header MUSS display:flex justify-content:space-between align-items:center sein. Logo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts. NIEMALS absolute positionierte Logos die Nav-Items ueberlappen. Header position:sticky top:0 z-index:1000.
-18 ANIMATIONS-FALLBACK: Alle scroll-triggered Animationen (fade-up, scroll-reveal, parallax etc.) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. Nutze prefers-reduced-motion media-query als Reset.
-15 SECTION-PFLICHT: 9 Sektionen vorhanden: hero, leistungen, ueber-uns, team, booking, reviews, standort, faq, footer. KEINE darf fehlen.
-Mindestens 10 sichtbare Bilder. Cloudinary-URLs pflicht.
-KEIN Pricing sichtbar.
-Tracking-Pixel vor </body>: <img src="${VFS_SUPABASE_URL}/functions/v1/mockup-tracker?m=${MOCKUP_ID}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
-Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
-  const usr = `Firma: ${company}\nBranche: ${branche}\nStadt: aus Adresse ableiten\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nEditorial-Hebung: ${cluster.editorial_hebung}\nDesign-Thesis: ${inspiration.design_thesis_refined}\nSignature-Effekt: ${cluster.signature_effekt} ${cluster.signature_name}\n\nColor-Palette:\n${Object.entries(inspiration.color_palette || {}).map(([k,v]) => k + ': ' + v).join('\n')}\n\nFontshare-Pairing: ${inspiration.fontshare_pairing}\n\nBest-in-Class-Inspiration:\n${(inspiration.best_in_class || []).slice(0,5).map(b => '- ' + b.name + ': ' + b.steal).join('\n')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Daten:\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}`;
+  // V35: Branche-Sub-Profile-Lookup + Master-Prompt-Builder (2026-05-06)
+  const profile = lookupProfile(branche, cluster.cluster);
+  console.log('STEP 4 V35-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
+  const sys = buildV35SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL);
+  const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
   const html = stripCodeFence(await llm('claude-sonnet-4-6', sys, usr, 48000));
   const finalHtml = html.startsWith('<!DOCTYPE') ? html : `<!DOCTYPE html>\n${html}`;
 
@@ -593,12 +896,12 @@ Output: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen.`;
     processed: true,
     build_status: finalStatus,
     lifecycle_stage: sendRes.sent ? 'preview_sent' : 'deployed',
-    branche_cluster: 'github-actions-premium',
-    signature_effect: 'auto-selected',
-    design_thesis: 'GitHub Actions Premium-Build mit Puppeteer-Scrape, Lighthouse, 5-Pass-Review.',
+    branche_cluster: profile.slug,
+    signature_effect: profile.signature_name,
+    design_thesis: 'V35 Sub-Profile-DNA: ' + profile.slug + ' / ' + profile.layout_dna.slice(0, 100),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'cloud-premium-v1_2026-05-05',
+    prompt_version: 'v35_subprofile_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
