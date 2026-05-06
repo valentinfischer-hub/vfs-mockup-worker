@@ -387,7 +387,7 @@ function buildV35SystemPrompt(profile, mockupId, supabaseUrl) {
   const p = profile;
   const pal = p.palette;
   const sig = signatureSnippet(p.signature_effekt);
-  return `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.\n\nGRUNDPRINZIP: Editorial vor Marketing. Whitespace vor Dichte. Konkretheit vor Floskel. Diese Site soll wirken wie ein gedrucktes Magazin im Browser, nicht wie ein generischer KMU-Section-Stack. Sub-Profile: ${p.slug || p.cluster + '_default'} (${p.cluster_name}).\n\nLAYOUT-DNA (PFLICHT-INTERPRETATION):\n${p.layout_dna}\n\nHERO-PATTERN (PFLICHT):\n${p.hero_pattern}\n\nDIESE 5 LAYOUT-MUSTER SIND PFLICHT (mind. 4 von 5 muessen vorkommen):\n1. Asymmetrischer Editorial-Split (60/40 oder 70/30, niemals 50/50 ausser fuer Vergleichs-Gegenstellung)\n2. Sticky-Side-Caption: Text bleibt sticky waehrend Bild/Content scrollt (verlaengert die emotionale Verweildauer)\n3. Magazin-Eyebrow vertikal: writing-mode:vertical-rl auf 1-2 Section-Labels fuer Editorial-Charakter\n4. Bento-Grid mit Variable-Hoehen (1 grosse + 2-3 kleine Cards in einer Sektion)\n5. Marquee-Ribbon: horizontaler Lauftext zwischen 2 Sections als visueller Atemzug\n\nWHITESPACE-WERTE (PFLICHT, KEINE ABWEICHUNG):\n- Section-Padding: 160px desktop / 96px mobile vertikal (padding-block)\n- Container max-width: 1320px, padding-inline 32px desktop / 20px mobile\n- H1-Block-Margin-Bottom: 48px desktop / 32px mobile\n- Inter-Section-Margin: 0 (Padding macht den Atem)\n- Hero-Hoehe: min(85vh, 800px) desktop / 78vh mobile, NIEMALS 100vh\n\nTYPOGRAFIE (PFLICHT):\n- Display-Font: ${p.fontshare_pairing.split('+')[0].trim()} fuer H1-H2 (Fontshare)\n- Body-Font: ${p.fontshare_pairing.split('+')[1].trim()} fuer H3-H6 + p (Fontshare)\n- H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, font-weight 600-700\n- H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05\n- H3: 1.5-1.75rem, weight 500\n- Body: 17px desktop / 16px mobile, line-height 1.55\n- Eyebrow: 0.78rem, uppercase, letter-spacing 0.18em, weight 500\n- Display-Quote: italic, max 2 Zeilen, in dunklen Sections weiss\n\nCOLOR-PALETTE (PFLICHT, KEIN HEX ERFINDEN, NUR DIESE 5):\n--primary: ${pal.primary}\n--accent: ${pal.accent}\n--dark: ${pal.dark}\n--light: ${pal.light}\n--neutral: ${pal.neutral}\nVerwende: primary fuer Body-Text + primaere Buttons + Logo. accent fuer Hover-States + einzelne Headlines + Akzent-Linien. dark fuer mind. 1 Dark-Section background (z.B. ueber-uns oder cta). light als Default Page-Background. neutral fuer Stat-Numbers + Eyebrow + dezente Trennlinien.\n\nIMAGE-BEHANDLUNG (PFLICHT):\n${p.treatment}\nImage-Mood-Direktive: ${p.image_mood}\nAspect-Ratio per Sektion fix:\n- Hero: aus hero_pattern\n- Leistungen-Cards: 4:5 Portrait\n- Team: 3:4 Portrait\n- Galerie: gemischt 1:1, 3:4, 16:9 in Bento-Grid\n- Image-Caption: vertikal sticky neben Bild ODER overlay-bottom mit grain (8% noise)\nPflicht: Alle Section-Bilder haben Editorial-Caption-Klasse mit Photo-Credit oder Quote.\n\nCONTENT-STORYTELLING (PFLICHT):\nVoice: ${p.voice}\nStory-Arc ueber die 9 Pflicht-Sektionen + Footer:\n1 #hero: Versprechen in 1 Satz, max 12 Worte. Nicht Was-wir-tun, sondern Wie-es-sich-anfuehlt. Sub-Headline 1 Satz max 18 Worte.\n2 #trust: Konkrete Zahlen (Jahre, Patienten/Kunden, Bewertung), Cert-Badges aus Profile: ${p.badges.join(', ')}\n3 #ueber-uns: Person mit Foto, max 80 Worte Story, 3 Werte als Eyebrow-Cards\n4 #leistungen: 3-4 Service-Cards. Pro Card: Name (max 4 Worte), 1-Satz-Was-passiert (max 18 Worte), 3-Punkt-Liste, KEIN Pricing\n5 #booking: 3-Step Interactive State-Machine (Service > Therapeut/Stylist > Slot) mit Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt. Calendly-Link als Backup.\n6 #team: 3-4 Cards mit Foto 3:4, Name, Rolle, Specialty (max 6 Worte)\n7 #reviews: Mind. 6 Testimonials mit Aggregate-Score, lokal (Vornamen aus Region passend), 5-Sterne, Avatar\n8 #standort: Adresse, OEV-Anbindung, Auto, Tel, Mail, Oeffnungszeiten + Google-Maps-iframe\n9 #faq: 5+ branchenspezifische Fragen Akkordion\n10 footer: Adresse, Oeffnung, Rechtliches\n\nPOSITIVE SPRACH-DIREKTIVE (PFLICHT):\n- Saetze max 18 Worte, Durchschnitt 12 Worte\n- Aktive Verben aus Profile.voice statt passive Allgemeinplaetze\n- KEIN "Wir bieten ...", stattdessen "Bei [Firma] [konkrete Aktion]"\n- Lokaler Bezug Pflicht: Mind. 3x Stadt/Quartier/Region erwaehnen\n- Branche-Vokabular aus Profile.voice nutzen, mind. 4 dieser Verben einsetzen\n- KEIN generic Filler. Wenn keine Daten vorhanden, lieber kuerzer schreiben als faken\n\nFORBIDDEN-WORDS (HARD-STOP):\nGame-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.\n\nLIBRARIES PFLICHT (CDN im Head):\n- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js\n- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js\n- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js\n- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js\n- Fontshare: https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap\n\nSIGNATURE-EFFEKT (PFLICHT mit Code-Snippet als Anchor):\n${p.signature_name} (effekt #${p.signature_effekt})\n${sig}\n\nJS-PFLICHT:\n- Lenis init mit lerp 0.08\n- Splitting() init fuer alle [data-splitting] Elemente\n- IntersectionObserver fuer [data-reveal] mit 1500ms-Fallback (visible auch bei Observer-Fail)\n- Magnetic-Button-Hover .btn-magnetic mit Motion (translate3d max 8px)\n- prefers-reduced-motion respektieren (alle Animations off)\n- Sticky-Nav scroll-shrink: bei scrollY > 80 add class .nav-shrunk\n\nGOOGLE MAPS PFLICHT-IFRAME:\n<iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>\n\nCHATBOT-WIDGET PFLICHT:\nFloating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse).\nPanel 380x520 weiss, Editorial-shadow, slide-up bei Klick.\nHeader "Chat mit [Brand]" + "Demo · 24/7 · vf-services".\n4 Chip-Fragen branchenrelevant.\nBei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).\n\nBOOKING-CTA PFLICHT:\nALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:".\nBooking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.\n\nMOBILE-FIRST PFLICHT:\nLayout primaer fuer 380px Viewport, dann hochskalieren.\nTouch-Targets min 48x48px.\nKeine Hover-only-Interaktion (alle Hovers haben tap-Variante).\nHero-Stats horizontal scrollbar bei <500px.\nNavigation als Hamburger bei <768px.\n\nSTICKY-NAV PFLICHT:\nHeader MUSS display:flex justify-content:space-between align-items:center sein.\nLogo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts.\nNIEMALS absolute positionierte Logos die Nav-Items ueberlappen.\nHeader position:sticky top:0 z-index:1000.\n\nANIMATIONS-FALLBACK PFLICHT:\nAlle scroll-triggered Animationen (fade-up, scroll-reveal, parallax) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. prefers-reduced-motion media-query als Reset.\n\nIMAGE-POOL-HIERARCHIE (V35.1):\nAm Ende dieses System-Prompts findest du den "BILDER-POOLS"-Block mit 3 priorisierten Pools:\n- AUTHENTIC POOL (Bilder vom Kunden gescraped, role-tagged: hero/gallery/team/generic) — BEVORZUGT fuer Header-Logo, Hero, Galerie-Sektion, Team-Cards\n- STOCK POOL (Pexels, branche-spezifisch) — fuer Service-Cards, Reviewer-Avatars, generische Detail-Shots, Fallback wenn Authentic leer\n- AI-GENERATED POOL — nur wenn Authentic + Stock fuer eine Sektion nicht passen\nPriorisierungs-Logik: AUTHENTIC > STOCK > AI. Authentic role=hero ZUERST in Hero. Authentic role=gallery in Galerie. Authentic role=team in Team-Cards. Erst wenn Authentic-Pool fuer eine Sektion nichts passendes hat, gehe zu STOCK. AI nur als letzte Option.\nVerwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE images.unsplash.com erfinden. KEIN Cloudinary-fetch-wrap noetig.\nWenn LOGO-Slot leer: Wordmark der Firma in Display-Font mit primary-Color statt img.\n\nSPRACH-PFLICHT:\nSchweizer Hochdeutsch (ss statt sz). Sie-Form. Keine Em-Dashes. Keine Floskeln. Mind. 10 sichtbare Bilder. KEIN Pricing sichtbar.\n\nTRACKING-PIXEL vor </body>:\n<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">\n\nOUTPUT: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Direkt DOCTYPE.`;
+  return `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.\n\nGRUNDPRINZIP: Editorial vor Marketing. Whitespace vor Dichte. Konkretheit vor Floskel. Diese Site soll wirken wie ein gedrucktes Magazin im Browser, nicht wie ein generischer KMU-Section-Stack. Sub-Profile: ${p.slug || p.cluster + '_default'} (${p.cluster_name}).\n\nLAYOUT-DNA (PFLICHT-INTERPRETATION):\n${p.layout_dna}\n\nHERO-PATTERN (PFLICHT):\n${p.hero_pattern}\n\nDIESE 5 LAYOUT-MUSTER SIND PFLICHT (mind. 4 von 5 muessen vorkommen):\n1. Asymmetrischer Editorial-Split (60/40 oder 70/30, niemals 50/50 ausser fuer Vergleichs-Gegenstellung)\n2. Sticky-Side-Caption: Text bleibt sticky waehrend Bild/Content scrollt (verlaengert die emotionale Verweildauer)\n3. Magazin-Eyebrow vertikal: writing-mode:vertical-rl auf 1-2 Section-Labels fuer Editorial-Charakter\n4. Bento-Grid mit Variable-Hoehen (1 grosse + 2-3 kleine Cards in einer Sektion)\n5. Marquee-Ribbon: horizontaler Lauftext zwischen 2 Sections als visueller Atemzug\n\nWHITESPACE-WERTE (PFLICHT, KEINE ABWEICHUNG):\n- Section-Padding: 160px desktop / 96px mobile vertikal (padding-block)\n- Container max-width: 1320px, padding-inline 32px desktop / 20px mobile\n- H1-Block-Margin-Bottom: 48px desktop / 32px mobile\n- Inter-Section-Margin: 0 (Padding macht den Atem)\n- Hero-Hoehe: min(85vh, 800px) desktop / 78vh mobile, NIEMALS 100vh\n\nTYPOGRAFIE (PFLICHT):\n- Display-Font: ${p.fontshare_pairing.split('+')[0].trim()} fuer H1-H2 (Fontshare)\n- Body-Font: ${p.fontshare_pairing.split('+')[1].trim()} fuer H3-H6 + p (Fontshare)\n- H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, font-weight 600-700\n- H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05\n- H3: 1.5-1.75rem, weight 500\n- Body: 17px desktop / 16px mobile, line-height 1.55\n- Eyebrow: 0.78rem, uppercase, letter-spacing 0.18em, weight 500\n- Display-Quote: italic, max 2 Zeilen, in dunklen Sections weiss\n\nCOLOR-PALETTE (PFLICHT, KEIN HEX ERFINDEN, NUR DIESE 5):\n--primary: ${pal.primary}\n--accent: ${pal.accent}\n--dark: ${pal.dark}\n--light: ${pal.light}\n--neutral: ${pal.neutral}\nVerwende: primary fuer Body-Text + primaere Buttons + Logo. accent fuer Hover-States + einzelne Headlines + Akzent-Linien. dark fuer mind. 1 Dark-Section background (z.B. ueber-uns oder cta). light als Default Page-Background. neutral fuer Stat-Numbers + Eyebrow + dezente Trennlinien.\n\nIMAGE-BEHANDLUNG (PFLICHT):\n${p.treatment}\nImage-Mood-Direktive: ${p.image_mood}\nAspect-Ratio per Sektion fix:\n- Hero: aus hero_pattern\n- Leistungen-Cards: 4:5 Portrait\n- Team: 3:4 Portrait\n- Galerie: gemischt 1:1, 3:4, 16:9 in Bento-Grid\n- Image-Caption: vertikal sticky neben Bild ODER overlay-bottom mit grain (8% noise)\nPflicht: Alle Section-Bilder haben Editorial-Caption-Klasse mit Photo-Credit oder Quote.\n\nCONTENT-STORYTELLING (PFLICHT):\nVoice: ${p.voice}\nStory-Arc ueber die 9 Pflicht-Sektionen + Footer:\n1 #hero: Versprechen in 1 Satz, max 12 Worte. Nicht Was-wir-tun, sondern Wie-es-sich-anfuehlt. Sub-Headline 1 Satz max 18 Worte.\n2 #trust: Konkrete Zahlen (Jahre, Patienten/Kunden, Bewertung), Cert-Badges aus Profile: ${p.badges.join(', ')}\n3 #ueber-uns: Person mit Foto, max 80 Worte Story, 3 Werte als Eyebrow-Cards\n4 #leistungen: 3-4 Service-Cards. Pro Card: Name (max 4 Worte), 1-Satz-Was-passiert (max 18 Worte), 3-Punkt-Liste, KEIN Pricing\n5 #booking: 3-Step Interactive State-Machine (Service > Therapeut/Stylist > Slot) mit Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt. Calendly-Link als Backup.\n6 #team: 3-4 Cards mit Foto 3:4, Name, Rolle, Specialty (max 6 Worte)\n7 #reviews: Mind. 6 Testimonials mit Aggregate-Score, lokal (Vornamen aus Region passend), 5-Sterne, Avatar\n8 #standort: Adresse, OEV-Anbindung, Auto, Tel, Mail, Oeffnungszeiten + Google-Maps-iframe\n9 #faq: 5+ branchenspezifische Fragen Akkordion\n10 footer: Adresse, Oeffnung, Rechtliches\n\nPOSITIVE SPRACH-DIREKTIVE (PFLICHT):\n- Saetze max 18 Worte, Durchschnitt 12 Worte\n- Aktive Verben aus Profile.voice statt passive Allgemeinplaetze\n- KEIN "Wir bieten ...", stattdessen "Bei [Firma] [konkrete Aktion]"\n- Lokaler Bezug Pflicht: Mind. 3x Stadt/Quartier/Region erwaehnen\n- Branche-Vokabular aus Profile.voice nutzen, mind. 4 dieser Verben einsetzen\n- KEIN generic Filler. Wenn keine Daten vorhanden, lieber kuerzer schreiben als faken\n\nFORBIDDEN-WORDS (HARD-STOP):\nGame-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.\n\nLIBRARIES PFLICHT (CDN im Head):\n- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js\n- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js\n- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js\n- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js\n- Fontshare: https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap\n\nSIGNATURE-EFFEKT (PFLICHT mit Code-Snippet als Anchor):\n${p.signature_name} (effekt #${p.signature_effekt})\n${sig}\n\nJS-PFLICHT:\n- Lenis init mit lerp 0.08\n- Splitting() init fuer alle [data-splitting] Elemente\n- IntersectionObserver fuer [data-reveal] mit 1500ms-Fallback (visible auch bei Observer-Fail)\n- Magnetic-Button-Hover .btn-magnetic mit Motion (translate3d max 8px)\n- prefers-reduced-motion respektieren (alle Animations off)\n- Sticky-Nav scroll-shrink: bei scrollY > 80 add class .nav-shrunk\n\nGOOGLE MAPS PFLICHT-IFRAME:\n<iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>\n\nCHATBOT-WIDGET PFLICHT (V35.4 default-closed):\nFloating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse). DIESER BUTTON IST IMMER ANKLICKBAR und immer sichtbar.\nDas Panel-Container 380x520 weiss + Editorial-shadow MUSS initial GESCHLOSSEN sein: display:none ODER aria-hidden="true" + opacity:0 + transform:translateY(20px). NIEMALS beim Page-Load offen rendern.\nKlick auf Floating-Button toggelt das Panel auf display:flex + opacity:1 + transform:none (slide-up Animation).\nIm geoeffneten Panel: Header "Chat mit [Brand]" + Subtitle "Demo · 24/7 · vf-services". 4 Chip-Fragen branchenrelevant.\nBei Klick auf eine Chip-Frage: Bot-Message mit 3-Dot-Typing-Indicator (800ms) + Demo-Antwort.\nClose-Button (X) im Panel-Header schliesst Panel zurueck zu display:none. Click outside Panel auch.\nKonkretes Pflicht-Markup-Pattern: <div class="chatbot-panel" id="chatbot-panel" style="display:none">...</div><button class="chatbot-fab" onclick="document.getElementById('chatbot-panel').style.display='flex'">...</button>\n\nBOOKING-CTA PFLICHT:\nALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:".\nBooking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.\n\nMOBILE-FIRST PFLICHT:\nLayout primaer fuer 380px Viewport, dann hochskalieren.\nTouch-Targets min 48x48px.\nKeine Hover-only-Interaktion (alle Hovers haben tap-Variante).\nHero-Stats horizontal scrollbar bei <500px.\nNavigation als Hamburger bei <768px.\n\nSTICKY-NAV PFLICHT:\nHeader MUSS display:flex justify-content:space-between align-items:center sein.\nLogo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts.\nNIEMALS absolute positionierte Logos die Nav-Items ueberlappen.\nHeader position:sticky top:0 z-index:1000.\n\nANIMATIONS-FALLBACK PFLICHT:\nAlle scroll-triggered Animationen (fade-up, scroll-reveal, parallax) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. prefers-reduced-motion media-query als Reset.\n\nIMAGE-POOL-HIERARCHIE (V35.1):\nAm Ende dieses System-Prompts findest du den "BILDER-POOLS"-Block mit 3 priorisierten Pools:\n- AUTHENTIC POOL (Bilder vom Kunden gescraped, role-tagged: hero/gallery/team/generic) — BEVORZUGT fuer Header-Logo, Hero, Galerie-Sektion, Team-Cards\n- STOCK POOL (Pexels, branche-spezifisch) — fuer Service-Cards, Reviewer-Avatars, generische Detail-Shots, Fallback wenn Authentic leer\n- AI-GENERATED POOL — nur wenn Authentic + Stock fuer eine Sektion nicht passen\nPriorisierungs-Logik: AUTHENTIC > STOCK > AI. Authentic role=hero ZUERST in Hero. Authentic role=gallery in Galerie. Authentic role=team in Team-Cards. Erst wenn Authentic-Pool fuer eine Sektion nichts passendes hat, gehe zu STOCK. AI nur als letzte Option.\nVerwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE images.unsplash.com erfinden. KEIN Cloudinary-fetch-wrap noetig.\nWenn LOGO-Slot leer: Wordmark der Firma in Display-Font mit primary-Color statt img.\n\nSPRACH-PFLICHT:\nSchweizer Hochdeutsch (ss statt sz). Sie-Form. Keine Em-Dashes. Keine Floskeln. Mind. 10 sichtbare Bilder. KEIN Pricing sichtbar.\n\nTRACKING-PIXEL vor </body>:\n<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">\n\nOUTPUT: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Direkt DOCTYPE.`;
 }
 // =====================================================================
 // === END V35 BRANCH-SUB-PROFILE-DNA ===================================
@@ -698,7 +698,37 @@ async function scrapeProspect(url) {
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 900 });
+    // V35.4: User-Agent setzen (Bot-Detection umgehen)
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({ 'Accept-Language': 'de-CH,de;q=0.9,en;q=0.8' });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 25_000 }).catch(() => {});
+    // V35.4: Cookie-Banner-Auto-Accept (Heuristik via Button-Text + Selector)
+    try {
+      await page.evaluate(() => {
+        const accepts = ['Akzeptieren','Alle akzeptieren','Alle Cookies akzeptieren','Annehmen','Zustimmen','Verstanden','Verstanden!','OK','Akzeptiere','Accept','Accept all','Accept All','Allow all','Got it','I agree','Agree','Einverstanden'];
+        const sels = ['button','a','[role="button"]','input[type="submit"]','input[type="button"]'];
+        const accepted = [];
+        for (const sel of sels) {
+          for (const el of document.querySelectorAll(sel)) {
+            const t = (el.innerText || el.textContent || el.value || '').trim();
+            if (!t) continue;
+            for (const a of accepts) {
+              if (t.toLowerCase().includes(a.toLowerCase())) {
+                try { el.click(); accepted.push(t.slice(0, 30)); break; } catch {}
+              }
+            }
+          }
+        }
+        // ID/class-Pattern Backup
+        const patterns = ['#cookie-accept','#accept-cookies','#accept-all','.cookie-accept','.accept-cookies','.consent-accept','[data-cookie-accept]','[onclick*="accept"]'];
+        for (const sel of patterns) {
+          const el = document.querySelector(sel);
+          if (el) { try { el.click(); accepted.push('selector:' + sel); } catch {} }
+        }
+        return accepted;
+      });
+      await new Promise(r => setTimeout(r, 1200));
+    } catch (_) {}
     // V35.2: Lazy-Load-Trigger — slow-scroll bottom + wait + scroll top
     try {
       await page.evaluate(async () => {
@@ -814,6 +844,80 @@ async function scrapeProspect(url) {
     return { title: '', description: '', images: [], imagesRich: [], textSnippets: [], ogImage: '', favicon: '', error: String(e) };
   } finally {
     await browser.close();
+  }
+}
+
+// V35.4: Raw-HTML-Fallback fuer imagesRich (wenn Puppeteer 0/wenige findet)
+async function fetchRawHtmlImages(prospectUrl) {
+  if (!prospectUrl) return [];
+  try {
+    const r = await fetch(prospectUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0 Safari/537.36', 'Accept-Language': 'de-CH,de;q=0.9' }, redirect: 'follow' });
+    if (!r.ok) return [];
+    const html = await r.text();
+    const baseUrl = new URL(prospectUrl);
+    const baseHref = baseUrl.origin;
+    const resolveUrl = (u) => {
+      if (!u) return '';
+      if (u.startsWith('data:')) return '';
+      if (u.startsWith('//')) return 'https:' + u;
+      if (u.startsWith('/')) return baseHref + u;
+      if (u.startsWith('http')) return u;
+      try { return new URL(u, prospectUrl).href; } catch { return ''; }
+    };
+    const out = [];
+    // 1. img src
+    const imgSrcRe = /<img\b[^>]*?\bsrc\s*=\s*["']([^"']+)["'][^>]*?>/gi;
+    let m;
+    while ((m = imgSrcRe.exec(html)) !== null && out.length < 50) {
+      const url = resolveUrl(m[1]);
+      if (url && /^https?:\/\//i.test(url)) {
+        const altMatch = m[0].match(/\balt\s*=\s*["']([^"']*)["']/i);
+        const clsMatch = m[0].match(/\bclass\s*=\s*["']([^"']*)["']/i);
+        out.push({ url, alt: (altMatch ? altMatch[1] : '').slice(0, 120), w: 0, h: 0, ctx: 'body', cls: (clsMatch ? clsMatch[1] : '').slice(0, 80), near_text: '' });
+      }
+    }
+    // 2. data-src/data-lazy-src/data-original
+    const dataSrcRe = /<img\b[^>]*?\b(?:data-src|data-lazy-src|data-original|data-img)\s*=\s*["']([^"']+)["'][^>]*?>/gi;
+    while ((m = dataSrcRe.exec(html)) !== null && out.length < 60) {
+      const url = resolveUrl(m[1]);
+      if (url && /^https?:\/\//i.test(url) && !out.some(x => x.url === url)) {
+        out.push({ url, alt: '', w: 0, h: 0, ctx: 'body', cls: 'lazy', near_text: '' });
+      }
+    }
+    // 3. srcset best
+    const srcsetRe = /srcset\s*=\s*["']([^"']+)["']/gi;
+    while ((m = srcsetRe.exec(html)) !== null && out.length < 70) {
+      const items = m[1].split(',').map(s => s.trim());
+      let bestUrl = null, bestW = 0;
+      for (const it of items) {
+        const parts = it.split(/\s+/);
+        const u = parts[0]; const w = parts[1] ? parseInt(parts[1].replace('w', ''), 10) : 0;
+        if (w > bestW && u) { bestW = w; bestUrl = u; }
+      }
+      const url = resolveUrl(bestUrl);
+      if (url && /^https?:\/\//i.test(url) && !out.some(x => x.url === url)) {
+        out.push({ url, alt: '', w: bestW, h: 0, ctx: 'body', cls: 'srcset', near_text: '' });
+      }
+    }
+    // 4. background-image inline-styles
+    const bgRe = /background-image\s*:\s*url\(["']?([^"')]+)["']?\)/gi;
+    while ((m = bgRe.exec(html)) !== null && out.length < 80) {
+      const url = resolveUrl(m[1]);
+      if (url && /^https?:\/\//i.test(url) && !out.some(x => x.url === url)) {
+        out.push({ url, alt: '', w: 0, h: 0, ctx: 'body', cls: 'bg-image', near_text: '' });
+      }
+    }
+    // 5. og:image
+    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']/i);
+    if (ogMatch) {
+      const url = resolveUrl(ogMatch[1]);
+      if (url && !out.some(x => x.url === url)) out.push({ url, alt: 'og:image', w: 0, h: 0, ctx: 'header', cls: 'og-image', near_text: '' });
+    }
+    return out;
+  } catch (e) {
+    console.log('[V35.4 raw-html-fallback]', e.message);
+    return [];
   }
 }
 
@@ -1016,12 +1120,18 @@ function buildHybridPoolPrompt({ logo, authentic, stock, ai }) {
   const hasAiGallery = (ai || []).some(x => x.role === 'gallery');
   lines.push('SEKTION-MAPPING (Pflicht-Reihenfolge je Sektion):');
   lines.push(`- Header-Logo: ${logo && logo.url ? 'LOGO-Slot oben verwenden' : 'KEIN Logo gefunden -> Wordmark der Firma in Display-Font mit primary-Color (NICHT Stock-Bild als Logo)'}`);
-  if (hasAuthHero) lines.push('- Hero: erste AUTHENTIC role=hero');
-  else if (hasAiHero) lines.push('- Hero: AI role=hero (echtes Branche-Bild generiert, BEVORZUGT vor Stock fuer Hero)');
+  if (hasAuthHero) lines.push('- Hero: PFLICHT erste AUTHENTIC role=hero (kein Stock-Hero erlaubt)');
+  else if (hasAiHero) {
+    const aiHeroUrl = (ai || []).find(x => x.role === 'hero')?.url || '';
+    lines.push('- Hero: PFLICHT [AI_1]-URL als Hero-Bild verwenden (' + aiHeroUrl.slice(0, 80) + '). AI-Bild ist mit deiner Profile-Palette und Branche generiert. KEIN Stock-Bild als Hero erlaubt. Beispiel-Markup: <img src="' + aiHeroUrl + '" alt="..." class="hero-image">');
+  }
   else lines.push('- Hero: STOCK aus den ersten 3-5 Pool-Eintraegen');
   if (hasAuthGallery >= 3) lines.push('- Galerie: AUTHENTIC role=gallery (mind. 3-4 Bilder, Bento-Grid)');
   else if (hasAuthGallery >= 1 && hasAiGallery) lines.push('- Galerie: AUTHENTIC role=gallery + AI role=gallery kombinieren (Bento)');
-  else if (hasAiGallery) lines.push('- Galerie: AI role=gallery (BEVORZUGT vor Stock fuer Galerie) + Stock als Fueller');
+  else if (hasAiGallery) {
+    const aiGalUrl = (ai || []).find(x => x.role === 'gallery')?.url || '';
+    lines.push('- Galerie: PFLICHT [AI_2]-URL einbinden (' + aiGalUrl.slice(0, 80) + ') + Stock als Fueller. AI-Bild zuerst.');
+  }
   else lines.push('- Galerie: STOCK aus Pool, mind. 4-6 Bilder, Bento-Grid mit Variable-Hoehen');
   lines.push('- Leistungen-Cards: STOCK Pool (eines pro Card)');
   lines.push(`- Team-Cards: ${hasAuthTeam ? 'AUTHENTIC role=team (echte Teammitglieder)' : 'STOCK Portrait-Bilder als Placeholder'}`);
@@ -1198,13 +1308,32 @@ async function main() {
   const profile = lookupProfile(branche, cluster.cluster);
 
   // === V35.1+: Hybrid-Image-Pool (Authentic > Stock > AI) ===
-  console.log('V35.3 STEP 3.5 Hybrid-Pool-Init');
-  // V35.3 Debug: log scraped imagesRich
-  const debugRich = scrape.imagesRich || [];
-  console.log('  scrape.imagesRich.length: ' + debugRich.length);
-  for (let di = 0; di < Math.min(debugRich.length, 5); di++) {
-    const im = debugRich[di];
-    console.log('    [' + di + '] ctx=' + im.ctx + ' w=' + im.w + 'x' + (im.h || '?') + ' cls=' + (im.cls || '').slice(0, 30) + ' url=' + (im.url || '').slice(0, 80));
+  console.log('V35.4 STEP 3.5 Hybrid-Pool-Init');
+  // V35.4: Raw-HTML-Fallback wenn Puppeteer 0/wenige Bilder findet
+  let workingImagesRich = scrape.imagesRich || [];
+  console.log('  puppeteer imagesRich.length: ' + workingImagesRich.length);
+  if (workingImagesRich.length < 3 && prospectUrl) {
+    console.log('  ↪ trigger raw-html-fallback (Puppeteer findet <3 Bilder)');
+    const rawFallback = await fetchRawHtmlImages(prospectUrl);
+    console.log('  ↪ raw-html-fallback found: ' + rawFallback.length);
+    // Merge: bevorzuge Puppeteer-Daten falls vorhanden, sonst raw-html
+    const seen = new Set(workingImagesRich.map(x => x.url));
+    for (const im of rawFallback) {
+      if (!seen.has(im.url)) {
+        workingImagesRich.push(im);
+        seen.add(im.url);
+      }
+    }
+    scrape.imagesRich = workingImagesRich;
+    // Auch og:image / favicon mergen falls noch leer
+    if (!scrape.ogImage && rawFallback.find(x => x.cls === 'og-image')) {
+      scrape.ogImage = rawFallback.find(x => x.cls === 'og-image').url;
+    }
+  }
+  console.log('  total imagesRich after fallback: ' + workingImagesRich.length);
+  for (let di = 0; di < Math.min(workingImagesRich.length, 5); di++) {
+    const im = workingImagesRich[di];
+    console.log('    [' + di + '] ctx=' + im.ctx + ' w=' + im.w + ' cls=' + (im.cls || '').slice(0, 30) + ' url=' + (im.url || '').slice(0, 80));
   }
   // 1. Logo-Extraction (V35.2: companyName Hint mitgeben)
   const logo = extractProspectLogo(scrape, company);
@@ -1286,8 +1415,8 @@ async function main() {
       preview_url_seite2: previewUrl + 'seite2.html',
       branche_cluster: profile.slug,
       signature_effect: profile.signature_name,
-      design_thesis: 'V35.2 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
-      prompt_version: 'v35_3_pool_hierarchy_2026-05-06',
+      design_thesis: 'V35.4 Hybrid-Pool (REDEPLOY_ONLY): ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+      prompt_version: 'v35_4_cookie_rawhtml_chatbot_2026-05-06',
     });
     if (SLACK_ALERTS_WEBHOOK) {
       await fetch(SLACK_ALERTS_WEBHOOK, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ text: `:wrench: Redeploy-only fertig: ${previewUrl} | profile=${profile.slug} auth=${(globalThis.__VFS_AUTHENTIC_POOL||[]).length} ai=${(globalThis.__VFS_AI_POOL||[]).length}` }) }).catch(()=>{});
@@ -1332,10 +1461,10 @@ async function main() {
     lifecycle_stage: sendRes.sent ? 'preview_sent' : 'deployed',
     branche_cluster: profile.slug,
     signature_effect: profile.signature_name,
-    design_thesis: 'V35.3 Pool-Hierarchy: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
+    design_thesis: 'V35.4 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'v35_3_pool_hierarchy_2026-05-06',
+    prompt_version: 'v35_4_cookie_rawhtml_chatbot_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
