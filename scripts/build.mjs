@@ -1,10 +1,15 @@
-// vfs-mockup-worker · Premium V35 Cloud-Builder (Sub-Profile-DNA)
+// vfs-mockup-worker · Premium V35.1 Cloud-Builder (Sub-Profile-DNA + Hybrid-Image-Pool)
 // GitHub Actions Runtime · Node 20+ ESM
 // Triggered via workflow_dispatch oder repository_dispatch mit mockup_id
 // V35 Changes (2026-05-06): Branche-Sub-Profile-Lookup, fixe Color-Palette pro Profil,
 // Layout-DNA + Hero-Pattern + Voice + Image-Treatment fix, Pflicht-Code-Snippets
 // fuer Signature-Effekte, 5 Pflicht-Layout-Muster (Asymm-Split, Sticky-Caption,
 // Vertical-Eyebrow, Bento-Grid, Marquee), positive Sprach-Direktive, Story-Arc.
+// V35.1 Changes (2026-05-06): 3-Tier-Image-Pool. AUTHENTIC (Prospect-Bilder mit
+// Quality-Gate, Role-Tagging hero/gallery/team/generic, HEAD-Validation,
+// Cloudinary-Wrap) > STOCK (Pexels) > AI (Replicate Flux-Schnell, optional via
+// REPLICATE_API_TOKEN). Plus Logo-Extraction (og:image / Header-class / Favicon).
+// Erweiterte scrapeProspect mit naturalWidth/Height + parent-context + alt-text.
 
 import Anthropic from '@anthropic-ai/sdk';
 import puppeteer from 'puppeteer';
@@ -376,7 +381,7 @@ function buildV35SystemPrompt(profile, mockupId, supabaseUrl) {
   const p = profile;
   const pal = p.palette;
   const sig = signatureSnippet(p.signature_effekt);
-  return `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.\n\nGRUNDPRINZIP: Editorial vor Marketing. Whitespace vor Dichte. Konkretheit vor Floskel. Diese Site soll wirken wie ein gedrucktes Magazin im Browser, nicht wie ein generischer KMU-Section-Stack. Sub-Profile: ${p.slug || p.cluster + '_default'} (${p.cluster_name}).\n\nLAYOUT-DNA (PFLICHT-INTERPRETATION):\n${p.layout_dna}\n\nHERO-PATTERN (PFLICHT):\n${p.hero_pattern}\n\nDIESE 5 LAYOUT-MUSTER SIND PFLICHT (mind. 4 von 5 muessen vorkommen):\n1. Asymmetrischer Editorial-Split (60/40 oder 70/30, niemals 50/50 ausser fuer Vergleichs-Gegenstellung)\n2. Sticky-Side-Caption: Text bleibt sticky waehrend Bild/Content scrollt (verlaengert die emotionale Verweildauer)\n3. Magazin-Eyebrow vertikal: writing-mode:vertical-rl auf 1-2 Section-Labels fuer Editorial-Charakter\n4. Bento-Grid mit Variable-Hoehen (1 grosse + 2-3 kleine Cards in einer Sektion)\n5. Marquee-Ribbon: horizontaler Lauftext zwischen 2 Sections als visueller Atemzug\n\nWHITESPACE-WERTE (PFLICHT, KEINE ABWEICHUNG):\n- Section-Padding: 160px desktop / 96px mobile vertikal (padding-block)\n- Container max-width: 1320px, padding-inline 32px desktop / 20px mobile\n- H1-Block-Margin-Bottom: 48px desktop / 32px mobile\n- Inter-Section-Margin: 0 (Padding macht den Atem)\n- Hero-Hoehe: min(85vh, 800px) desktop / 78vh mobile, NIEMALS 100vh\n\nTYPOGRAFIE (PFLICHT):\n- Display-Font: ${p.fontshare_pairing.split('+')[0].trim()} fuer H1-H2 (Fontshare)\n- Body-Font: ${p.fontshare_pairing.split('+')[1].trim()} fuer H3-H6 + p (Fontshare)\n- H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, font-weight 600-700\n- H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05\n- H3: 1.5-1.75rem, weight 500\n- Body: 17px desktop / 16px mobile, line-height 1.55\n- Eyebrow: 0.78rem, uppercase, letter-spacing 0.18em, weight 500\n- Display-Quote: italic, max 2 Zeilen, in dunklen Sections weiss\n\nCOLOR-PALETTE (PFLICHT, KEIN HEX ERFINDEN, NUR DIESE 5):\n--primary: ${pal.primary}\n--accent: ${pal.accent}\n--dark: ${pal.dark}\n--light: ${pal.light}\n--neutral: ${pal.neutral}\nVerwende: primary fuer Body-Text + primaere Buttons + Logo. accent fuer Hover-States + einzelne Headlines + Akzent-Linien. dark fuer mind. 1 Dark-Section background (z.B. ueber-uns oder cta). light als Default Page-Background. neutral fuer Stat-Numbers + Eyebrow + dezente Trennlinien.\n\nIMAGE-BEHANDLUNG (PFLICHT):\n${p.treatment}\nImage-Mood-Direktive: ${p.image_mood}\nAspect-Ratio per Sektion fix:\n- Hero: aus hero_pattern\n- Leistungen-Cards: 4:5 Portrait\n- Team: 3:4 Portrait\n- Galerie: gemischt 1:1, 3:4, 16:9 in Bento-Grid\n- Image-Caption: vertikal sticky neben Bild ODER overlay-bottom mit grain (8% noise)\nPflicht: Alle Section-Bilder haben Editorial-Caption-Klasse mit Photo-Credit oder Quote.\n\nCONTENT-STORYTELLING (PFLICHT):\nVoice: ${p.voice}\nStory-Arc ueber die 9 Pflicht-Sektionen + Footer:\n1 #hero: Versprechen in 1 Satz, max 12 Worte. Nicht Was-wir-tun, sondern Wie-es-sich-anfuehlt. Sub-Headline 1 Satz max 18 Worte.\n2 #trust: Konkrete Zahlen (Jahre, Patienten/Kunden, Bewertung), Cert-Badges aus Profile: ${p.badges.join(', ')}\n3 #ueber-uns: Person mit Foto, max 80 Worte Story, 3 Werte als Eyebrow-Cards\n4 #leistungen: 3-4 Service-Cards. Pro Card: Name (max 4 Worte), 1-Satz-Was-passiert (max 18 Worte), 3-Punkt-Liste, KEIN Pricing\n5 #booking: 3-Step Interactive State-Machine (Service > Therapeut/Stylist > Slot) mit Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt. Calendly-Link als Backup.\n6 #team: 3-4 Cards mit Foto 3:4, Name, Rolle, Specialty (max 6 Worte)\n7 #reviews: Mind. 6 Testimonials mit Aggregate-Score, lokal (Vornamen aus Region passend), 5-Sterne, Avatar\n8 #standort: Adresse, OEV-Anbindung, Auto, Tel, Mail, Oeffnungszeiten + Google-Maps-iframe\n9 #faq: 5+ branchenspezifische Fragen Akkordion\n10 footer: Adresse, Oeffnung, Rechtliches\n\nPOSITIVE SPRACH-DIREKTIVE (PFLICHT):\n- Saetze max 18 Worte, Durchschnitt 12 Worte\n- Aktive Verben aus Profile.voice statt passive Allgemeinplaetze\n- KEIN "Wir bieten ...", stattdessen "Bei [Firma] [konkrete Aktion]"\n- Lokaler Bezug Pflicht: Mind. 3x Stadt/Quartier/Region erwaehnen\n- Branche-Vokabular aus Profile.voice nutzen, mind. 4 dieser Verben einsetzen\n- KEIN generic Filler. Wenn keine Daten vorhanden, lieber kuerzer schreiben als faken\n\nFORBIDDEN-WORDS (HARD-STOP):\nGame-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.\n\nLIBRARIES PFLICHT (CDN im Head):\n- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js\n- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js\n- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js\n- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js\n- Fontshare: https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap\n\nSIGNATURE-EFFEKT (PFLICHT mit Code-Snippet als Anchor):\n${p.signature_name} (effekt #${p.signature_effekt})\n${sig}\n\nJS-PFLICHT:\n- Lenis init mit lerp 0.08\n- Splitting() init fuer alle [data-splitting] Elemente\n- IntersectionObserver fuer [data-reveal] mit 1500ms-Fallback (visible auch bei Observer-Fail)\n- Magnetic-Button-Hover .btn-magnetic mit Motion (translate3d max 8px)\n- prefers-reduced-motion respektieren (alle Animations off)\n- Sticky-Nav scroll-shrink: bei scrollY > 80 add class .nav-shrunk\n\nGOOGLE MAPS PFLICHT-IFRAME:\n<iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>\n\nCHATBOT-WIDGET PFLICHT:\nFloating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse).\nPanel 380x520 weiss, Editorial-shadow, slide-up bei Klick.\nHeader "Chat mit [Brand]" + "Demo · 24/7 · vf-services".\n4 Chip-Fragen branchenrelevant.\nBei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).\n\nBOOKING-CTA PFLICHT:\nALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:".\nBooking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.\n\nMOBILE-FIRST PFLICHT:\nLayout primaer fuer 380px Viewport, dann hochskalieren.\nTouch-Targets min 48x48px.\nKeine Hover-only-Interaktion (alle Hovers haben tap-Variante).\nHero-Stats horizontal scrollbar bei <500px.\nNavigation als Hamburger bei <768px.\n\nSTICKY-NAV PFLICHT:\nHeader MUSS display:flex justify-content:space-between align-items:center sein.\nLogo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts.\nNIEMALS absolute positionierte Logos die Nav-Items ueberlappen.\nHeader position:sticky top:0 z-index:1000.\n\nANIMATIONS-FALLBACK PFLICHT:\nAlle scroll-triggered Animationen (fade-up, scroll-reveal, parallax) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. prefers-reduced-motion media-query als Reset.\n\nIMAGE-WHITELIST:\nIm System-Prompt findest du eine Liste VERFUEGBARE BILDER (Pexels-Pool).\nVerwende AUSSCHLIESSLICH diese URLs als img src.\nKEINE images.unsplash.com URLs erfinden.\nKEIN Cloudinary-fetch-wrap noetig.\n\nSPRACH-PFLICHT:\nSchweizer Hochdeutsch (ss statt sz). Sie-Form. Keine Em-Dashes. Keine Floskeln. Mind. 10 sichtbare Bilder. KEIN Pricing sichtbar.\n\nTRACKING-PIXEL vor </body>:\n<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">\n\nOUTPUT: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Direkt DOCTYPE.`;
+  return `Du baust einen Premium-Website-Mockup auf Awwwards-SOTM-Niveau fuer ein Schweizer KMU.\n\nGRUNDPRINZIP: Editorial vor Marketing. Whitespace vor Dichte. Konkretheit vor Floskel. Diese Site soll wirken wie ein gedrucktes Magazin im Browser, nicht wie ein generischer KMU-Section-Stack. Sub-Profile: ${p.slug || p.cluster + '_default'} (${p.cluster_name}).\n\nLAYOUT-DNA (PFLICHT-INTERPRETATION):\n${p.layout_dna}\n\nHERO-PATTERN (PFLICHT):\n${p.hero_pattern}\n\nDIESE 5 LAYOUT-MUSTER SIND PFLICHT (mind. 4 von 5 muessen vorkommen):\n1. Asymmetrischer Editorial-Split (60/40 oder 70/30, niemals 50/50 ausser fuer Vergleichs-Gegenstellung)\n2. Sticky-Side-Caption: Text bleibt sticky waehrend Bild/Content scrollt (verlaengert die emotionale Verweildauer)\n3. Magazin-Eyebrow vertikal: writing-mode:vertical-rl auf 1-2 Section-Labels fuer Editorial-Charakter\n4. Bento-Grid mit Variable-Hoehen (1 grosse + 2-3 kleine Cards in einer Sektion)\n5. Marquee-Ribbon: horizontaler Lauftext zwischen 2 Sections als visueller Atemzug\n\nWHITESPACE-WERTE (PFLICHT, KEINE ABWEICHUNG):\n- Section-Padding: 160px desktop / 96px mobile vertikal (padding-block)\n- Container max-width: 1320px, padding-inline 32px desktop / 20px mobile\n- H1-Block-Margin-Bottom: 48px desktop / 32px mobile\n- Inter-Section-Margin: 0 (Padding macht den Atem)\n- Hero-Hoehe: min(85vh, 800px) desktop / 78vh mobile, NIEMALS 100vh\n\nTYPOGRAFIE (PFLICHT):\n- Display-Font: ${p.fontshare_pairing.split('+')[0].trim()} fuer H1-H2 (Fontshare)\n- Body-Font: ${p.fontshare_pairing.split('+')[1].trim()} fuer H3-H6 + p (Fontshare)\n- H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, font-weight 600-700\n- H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05\n- H3: 1.5-1.75rem, weight 500\n- Body: 17px desktop / 16px mobile, line-height 1.55\n- Eyebrow: 0.78rem, uppercase, letter-spacing 0.18em, weight 500\n- Display-Quote: italic, max 2 Zeilen, in dunklen Sections weiss\n\nCOLOR-PALETTE (PFLICHT, KEIN HEX ERFINDEN, NUR DIESE 5):\n--primary: ${pal.primary}\n--accent: ${pal.accent}\n--dark: ${pal.dark}\n--light: ${pal.light}\n--neutral: ${pal.neutral}\nVerwende: primary fuer Body-Text + primaere Buttons + Logo. accent fuer Hover-States + einzelne Headlines + Akzent-Linien. dark fuer mind. 1 Dark-Section background (z.B. ueber-uns oder cta). light als Default Page-Background. neutral fuer Stat-Numbers + Eyebrow + dezente Trennlinien.\n\nIMAGE-BEHANDLUNG (PFLICHT):\n${p.treatment}\nImage-Mood-Direktive: ${p.image_mood}\nAspect-Ratio per Sektion fix:\n- Hero: aus hero_pattern\n- Leistungen-Cards: 4:5 Portrait\n- Team: 3:4 Portrait\n- Galerie: gemischt 1:1, 3:4, 16:9 in Bento-Grid\n- Image-Caption: vertikal sticky neben Bild ODER overlay-bottom mit grain (8% noise)\nPflicht: Alle Section-Bilder haben Editorial-Caption-Klasse mit Photo-Credit oder Quote.\n\nCONTENT-STORYTELLING (PFLICHT):\nVoice: ${p.voice}\nStory-Arc ueber die 9 Pflicht-Sektionen + Footer:\n1 #hero: Versprechen in 1 Satz, max 12 Worte. Nicht Was-wir-tun, sondern Wie-es-sich-anfuehlt. Sub-Headline 1 Satz max 18 Worte.\n2 #trust: Konkrete Zahlen (Jahre, Patienten/Kunden, Bewertung), Cert-Badges aus Profile: ${p.badges.join(', ')}\n3 #ueber-uns: Person mit Foto, max 80 Worte Story, 3 Werte als Eyebrow-Cards\n4 #leistungen: 3-4 Service-Cards. Pro Card: Name (max 4 Worte), 1-Satz-Was-passiert (max 18 Worte), 3-Punkt-Liste, KEIN Pricing\n5 #booking: 3-Step Interactive State-Machine (Service > Therapeut/Stylist > Slot) mit Live-Summary, Confirm-Button erst aktiv wenn alle 3 gewaehlt. Calendly-Link als Backup.\n6 #team: 3-4 Cards mit Foto 3:4, Name, Rolle, Specialty (max 6 Worte)\n7 #reviews: Mind. 6 Testimonials mit Aggregate-Score, lokal (Vornamen aus Region passend), 5-Sterne, Avatar\n8 #standort: Adresse, OEV-Anbindung, Auto, Tel, Mail, Oeffnungszeiten + Google-Maps-iframe\n9 #faq: 5+ branchenspezifische Fragen Akkordion\n10 footer: Adresse, Oeffnung, Rechtliches\n\nPOSITIVE SPRACH-DIREKTIVE (PFLICHT):\n- Saetze max 18 Worte, Durchschnitt 12 Worte\n- Aktive Verben aus Profile.voice statt passive Allgemeinplaetze\n- KEIN "Wir bieten ...", stattdessen "Bei [Firma] [konkrete Aktion]"\n- Lokaler Bezug Pflicht: Mind. 3x Stadt/Quartier/Region erwaehnen\n- Branche-Vokabular aus Profile.voice nutzen, mind. 4 dieser Verben einsetzen\n- KEIN generic Filler. Wenn keine Daten vorhanden, lieber kuerzer schreiben als faken\n\nFORBIDDEN-WORDS (HARD-STOP):\nGame-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (max 1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence.\n\nLIBRARIES PFLICHT (CDN im Head):\n- Lenis https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js\n- Motion One https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js\n- Splitting.js https://unpkg.com/splitting@1.0.6/dist/splitting.min.js\n- Lottie-web https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js\n- Fontshare: https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap\n\nSIGNATURE-EFFEKT (PFLICHT mit Code-Snippet als Anchor):\n${p.signature_name} (effekt #${p.signature_effekt})\n${sig}\n\nJS-PFLICHT:\n- Lenis init mit lerp 0.08\n- Splitting() init fuer alle [data-splitting] Elemente\n- IntersectionObserver fuer [data-reveal] mit 1500ms-Fallback (visible auch bei Observer-Fail)\n- Magnetic-Button-Hover .btn-magnetic mit Motion (translate3d max 8px)\n- prefers-reduced-motion respektieren (alle Animations off)\n- Sticky-Nav scroll-shrink: bei scrollY > 80 add class .nav-shrunk\n\nGOOGLE MAPS PFLICHT-IFRAME:\n<iframe src="https://maps.google.com/maps?q=ADRESSE&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;height:100%;border:0"></iframe>\n\nCHATBOT-WIDGET PFLICHT:\nFloating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse).\nPanel 380x520 weiss, Editorial-shadow, slide-up bei Klick.\nHeader "Chat mit [Brand]" + "Demo · 24/7 · vf-services".\n4 Chip-Fragen branchenrelevant.\nBei Klick: Bot-Message mit 3-Dot-Typing-Indicator (800ms).\n\nBOOKING-CTA PFLICHT:\nALLE Termin-Buttons MUESSEN href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" haben. KEIN href="#" oder href="javascript:".\nBooking-Section MUSS zusaetzlich einen direkten Calendly-iframe oder Link-Card mit Calendly-URL haben.\n\nMOBILE-FIRST PFLICHT:\nLayout primaer fuer 380px Viewport, dann hochskalieren.\nTouch-Targets min 48x48px.\nKeine Hover-only-Interaktion (alle Hovers haben tap-Variante).\nHero-Stats horizontal scrollbar bei <500px.\nNavigation als Hamburger bei <768px.\n\nSTICKY-NAV PFLICHT:\nHeader MUSS display:flex justify-content:space-between align-items:center sein.\nLogo links, Nav-Items zentral oder rechts, Termin-CTA ganz rechts.\nNIEMALS absolute positionierte Logos die Nav-Items ueberlappen.\nHeader position:sticky top:0 z-index:1000.\n\nANIMATIONS-FALLBACK PFLICHT:\nAlle scroll-triggered Animationen (fade-up, scroll-reveal, parallax) MUESSEN nach 1.2s sichtbar sein auch wenn IntersectionObserver fails. prefers-reduced-motion media-query als Reset.\n\nIMAGE-POOL-HIERARCHIE (V35.1):\nAm Ende dieses System-Prompts findest du den "BILDER-POOLS"-Block mit 3 priorisierten Pools:\n- AUTHENTIC POOL (Bilder vom Kunden gescraped, role-tagged: hero/gallery/team/generic) — BEVORZUGT fuer Header-Logo, Hero, Galerie-Sektion, Team-Cards\n- STOCK POOL (Pexels, branche-spezifisch) — fuer Service-Cards, Reviewer-Avatars, generische Detail-Shots, Fallback wenn Authentic leer\n- AI-GENERATED POOL — nur wenn Authentic + Stock fuer eine Sektion nicht passen\nPriorisierungs-Logik: AUTHENTIC > STOCK > AI. Authentic role=hero ZUERST in Hero. Authentic role=gallery in Galerie. Authentic role=team in Team-Cards. Erst wenn Authentic-Pool fuer eine Sektion nichts passendes hat, gehe zu STOCK. AI nur als letzte Option.\nVerwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE images.unsplash.com erfinden. KEIN Cloudinary-fetch-wrap noetig.\nWenn LOGO-Slot leer: Wordmark der Firma in Display-Font mit primary-Color statt img.\n\nSPRACH-PFLICHT:\nSchweizer Hochdeutsch (ss statt sz). Sie-Form. Keine Em-Dashes. Keine Floskeln. Mind. 10 sichtbare Bilder. KEIN Pricing sichtbar.\n\nTRACKING-PIXEL vor </body>:\n<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">\n\nOUTPUT: NUR komplettes HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Direkt DOCTYPE.`;
 }
 // =====================================================================
 // === END V35 BRANCH-SUB-PROFILE-DNA ===================================
@@ -447,29 +452,45 @@ globalThis.fetch = async function(url, opts = {}) {
     } catch(e) {}
     return r;
   }
-  // Inject Pool-Whitelist into Anthropic system prompt
+  // V35.1: Inject Hybrid-Pool (Authentic > Stock > AI) into Anthropic system prompt
   if (u.includes("api.anthropic.com/v1/messages") && opts.method === "POST" && opts.body) {
     try {
-      // Lazy-init pool
+      // Lazy-init Pexels (Stock) pool if missing
       if ((!globalThis.__VFS_PEXELS_POOL || !globalThis.__VFS_PEXELS_POOL.length) && globalThis.__VFS_BRANCHE && typeof fetchPexelsPool === "function") {
         if (!__VFS_POOL_PROMISE) __VFS_POOL_PROMISE = fetchPexelsPool(globalThis.__VFS_BRANCHE, globalThis.__VFS_CLUSTER || "professional", 24);
         globalThis.__VFS_PEXELS_POOL = await __VFS_POOL_PROMISE;
-        console.log("[Patch A3] Pool initialized, size:", (globalThis.__VFS_PEXELS_POOL || []).length);
+        console.log("[V35.1] Pexels-pool initialized, size:", (globalThis.__VFS_PEXELS_POOL || []).length);
       }
       const body = JSON.parse(opts.body);
-      if (body.system && globalThis.__VFS_PEXELS_POOL && globalThis.__VFS_PEXELS_POOL.length) {
-        const inject = (typeof buildImageWhitelistPrompt === "function") ? buildImageWhitelistPrompt(globalThis.__VFS_PEXELS_POOL) : "";
-        if (inject && !body.system.includes("VERFUEGBARE BILDER")) {
-          if (typeof body.system === "string") {
-            body.system = body.system + inject;
-          } else if (Array.isArray(body.system)) {
-            body.system.push({ type: "text", text: inject });
-          }
+      const hasAuth = Array.isArray(globalThis.__VFS_AUTHENTIC_POOL) && globalThis.__VFS_AUTHENTIC_POOL.length;
+      const hasAi = Array.isArray(globalThis.__VFS_AI_POOL) && globalThis.__VFS_AI_POOL.length;
+      const hasStock = Array.isArray(globalThis.__VFS_PEXELS_POOL) && globalThis.__VFS_PEXELS_POOL.length;
+      if (body.system && (hasAuth || hasAi || hasStock)) {
+        let inject = "";
+        if ((hasAuth || hasAi || globalThis.__VFS_LOGO) && typeof buildHybridPoolPrompt === "function") {
+          inject = buildHybridPoolPrompt({
+            logo: globalThis.__VFS_LOGO || null,
+            authentic: globalThis.__VFS_AUTHENTIC_POOL || [],
+            stock: globalThis.__VFS_PEXELS_POOL || [],
+            ai: globalThis.__VFS_AI_POOL || [],
+          });
+        } else if (hasStock && typeof buildImageWhitelistPrompt === "function") {
+          // Fallback Pexels-only (kompat zu V35-Builds ohne Hybrid-Init)
+          inject = buildImageWhitelistPrompt(globalThis.__VFS_PEXELS_POOL);
+        }
+        const marker = "BILDER-POOLS";
+        const oldMarker = "VERFUEGBARE BILDER";
+        if (inject && typeof body.system === "string" && !body.system.includes(marker) && !body.system.includes(oldMarker)) {
+          body.system = body.system + inject;
           opts = { ...opts, body: JSON.stringify(body) };
-          console.log("[Patch A3] Image-whitelist injected into Anthropic system prompt");
+          console.log("[V35.1] Hybrid-Pool injected: auth=" + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + " stock=" + ((globalThis.__VFS_PEXELS_POOL || []).length) + " ai=" + ((globalThis.__VFS_AI_POOL || []).length) + " logo=" + (globalThis.__VFS_LOGO ? "yes" : "no"));
+        } else if (inject && Array.isArray(body.system) && !JSON.stringify(body.system).includes(marker)) {
+          body.system.push({ type: "text", text: inject });
+          opts = { ...opts, body: JSON.stringify(body) };
+          console.log("[V35.1] Hybrid-Pool injected (array system)");
         }
       }
-    } catch(e) { console.log("[Patch A3] inject failed:", e.message); }
+    } catch(e) { console.log("[V35.1] hybrid-inject failed:", e.message); }
   }
   return __VFS_ORIG_FETCH.call(this, url, opts);
 };
@@ -649,33 +670,230 @@ function slugify(s) {
 
 // ─── Site-Scrape via Puppeteer ───────────────────────────────
 async function scrapeProspect(url) {
-  if (!url) return { title: '', description: '', images: [], textSnippets: [] };
+  if (!url) return { title: '', description: '', images: [], imagesRich: [], textSnippets: [], ogImage: '', favicon: '' };
   const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   try {
     const page = await browser.newPage();
     await page.setViewport({ width: 1366, height: 900 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 25_000 }).catch(() => {});
     const data = await page.evaluate(() => {
-      const imgs = Array.from(document.querySelectorAll('img'))
-        .filter(i => i.src && !i.src.startsWith('data:') && i.naturalWidth > 200)
+      // V35.1: Rich image data with context, dims, alt
+      const ctx = (el) => {
+        let p = el.parentElement; let depth = 0;
+        while (p && depth < 8) {
+          const tag = p.tagName.toLowerCase();
+          if (['header','nav','footer','aside','main','section','article','figure'].includes(tag)) return tag;
+          const cls = (p.className || '').toString().toLowerCase();
+          if (/(gallery|galerie|portfolio|projekte|werkstatt|praxis|behandlung|hero|team|crew|mitarbeiter)/.test(cls)) return 'gallery';
+          if (/(header|navbar|nav-)/.test(cls)) return 'header';
+          if (/(footer|bottom)/.test(cls)) return 'footer';
+          p = p.parentElement; depth++;
+        }
+        return 'body';
+      };
+      const imgsRich = Array.from(document.querySelectorAll('img'))
+        .filter(i => i.src && !i.src.startsWith('data:') && i.naturalWidth > 100)
+        .slice(0, 30)
+        .map(i => ({
+          url: i.src,
+          alt: (i.alt || '').slice(0, 120),
+          w: i.naturalWidth || 0,
+          h: i.naturalHeight || 0,
+          ctx: ctx(i),
+          cls: (i.className || '').toString().slice(0, 60),
+          near_text: (i.parentElement?.innerText || '').slice(0, 80).trim(),
+        }));
+      // Plus background-image URLs in inline-styles (Hero-Backgrounds oft so)
+      const bgRich = Array.from(document.querySelectorAll('[style*="background-image"]'))
         .slice(0, 12)
-        .map(i => i.src);
+        .map(el => {
+          const m = (el.getAttribute('style') || '').match(/url\(["']?([^"')]+)["']?\)/);
+          if (!m) return null;
+          return { url: m[1], alt: '', w: el.offsetWidth || 0, h: el.offsetHeight || 0, ctx: ctx(el), cls: 'bg-image', near_text: (el.innerText || '').slice(0, 80) };
+        }).filter(Boolean);
+      const allImgs = [...imgsRich, ...bgRich];
       const textSnippets = Array.from(document.querySelectorAll('h1, h2, h3, p'))
         .map(e => (e.innerText || '').trim()).filter(t => t.length > 20 && t.length < 400)
         .slice(0, 30);
+      const ogImage = document.querySelector('meta[property="og:image"]')?.content || '';
+      const favicon = (document.querySelector('link[rel*="icon"]')?.href || '').replace(/^http:/, 'https:');
       return {
         title: document.title || '',
         description: document.querySelector('meta[name="description"]')?.content || '',
-        images: imgs,
+        ogImage,
+        favicon,
+        images: allImgs.map(x => x.url),
+        imagesRich: allImgs,
+        headlines: Array.from(document.querySelectorAll('h1, h2')).map(e => (e.innerText || '').trim()).filter(Boolean).slice(0, 10),
         textSnippets,
       };
     });
     return data;
   } catch (e) {
-    return { title: '', description: '', images: [], textSnippets: [], error: String(e) };
+    return { title: '', description: '', images: [], imagesRich: [], textSnippets: [], ogImage: '', favicon: '', error: String(e) };
   } finally {
     await browser.close();
   }
+}
+
+// V35.1 Quality-Gate: Score Prospect-Bilder + Role-Tagging ---------
+function scoreProspectImages(imagesRich, branche) {
+  if (!Array.isArray(imagesRich) || imagesRich.length === 0) return [];
+  const branchKey = (branche || '').toLowerCase();
+  const blacklist = /(logo|favicon|icon|sprite|placeholder|loading|tracking|pixel|spinner|whatsapp|facebook|instagram|twitter|linkedin|youtube|tiktok|xing|google|maps|cookie|gdpr|datenschutz|impressum|agb)/i;
+  const galleryHint = /(gallery|galerie|portfolio|projekt|werkstatt|praxis|behandlung|raum|interior|atelier|studio|salon|kollektion|einblick)/i;
+  const teamHint = /(team|crew|mitarbeiter|kolleg|stylist|therapeut|berater|portrait|portr%C3%A4t)/i;
+  const heroHint = /(hero|header|banner|cover|main-image|full|wide|landing)/i;
+  const out = [];
+  for (const im of imagesRich) {
+    if (!im.url || blacklist.test(im.url) || blacklist.test(im.cls || '') || blacklist.test(im.alt || '')) continue;
+    const w = im.w || 0;
+    if (w > 0 && w < 800) continue; // 800 minimum, 0 = unknown size durch lazy-load → toleriert
+    let score = 0;
+    if (w >= 1800) score += 40;
+    else if (w >= 1400) score += 30;
+    else if (w >= 1100) score += 20;
+    else if (w >= 800) score += 10;
+    if (im.ctx === 'gallery' || galleryHint.test(im.cls || '') || galleryHint.test(im.url)) score += 25;
+    if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) score += 20;
+    if (teamHint.test(im.cls || '') || teamHint.test(im.alt || '')) score += 15;
+    if (branchKey && im.alt && im.alt.toLowerCase().includes(branchKey)) score += 10;
+    if (im.near_text && im.near_text.length > 20) score += 5;
+    // Aspect-Ratio: sehr schmale (Slider/Banner) abwerten, sehr hohe ok
+    if (im.w && im.h) {
+      const ar = im.w / im.h;
+      if (ar > 4 || ar < 0.3) score -= 20;
+    }
+    if (score < 10) continue;
+    let role = 'generic';
+    if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) role = 'hero';
+    else if (im.ctx === 'gallery' || galleryHint.test(im.cls || '') || galleryHint.test(im.url)) role = 'gallery';
+    else if (teamHint.test(im.cls || '') || teamHint.test(im.alt || '')) role = 'team';
+    out.push({ url: im.url, alt: im.alt || '', w, h: im.h || 0, role, score });
+  }
+  return out.sort((a, b) => b.score - a.score).slice(0, 12);
+}
+
+// V35.1 Logo-Extraction (og:image + Header-img-class~logo + Favicon) ---
+function extractProspectLogo(scrape) {
+  if (!scrape) return null;
+  if (scrape.ogImage && /\.(png|jpg|jpeg|webp|svg)/i.test(scrape.ogImage)) {
+    return { url: scrape.ogImage, source: 'og:image' };
+  }
+  const headerLogo = (scrape.imagesRich || []).find(i => /(logo|brand|wordmark)/i.test(i.url) || /(logo|brand|wordmark)/i.test(i.cls || '') || /(logo|brand|wordmark)/i.test(i.alt || ''));
+  if (headerLogo) return { url: headerLogo.url, source: 'header-class' };
+  if (scrape.favicon && !/\/favicon\.ico$/i.test(scrape.favicon)) {
+    return { url: scrape.favicon, source: 'favicon' };
+  }
+  return null;
+}
+
+// V35.1 Image-Validation (HEAD + Cloudinary-Wrap-Test) ----------------
+async function validateImageHead(url, timeoutMs = 5000) {
+  if (!url) return false;
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), timeoutMs);
+    const r = await fetch(url, { method: 'HEAD', signal: ctl.signal, redirect: 'follow' });
+    clearTimeout(t);
+    if (!r.ok) return false;
+    const ct = r.headers.get('content-type') || '';
+    return ct.startsWith('image/');
+  } catch { return false; }
+}
+
+async function filterValidImages(scoredPool, maxParallel = 6) {
+  const results = [];
+  for (let i = 0; i < scoredPool.length; i += maxParallel) {
+    const batch = scoredPool.slice(i, i + maxParallel);
+    const checks = await Promise.all(batch.map(async im => ({ ok: await validateImageHead(im.url), im })));
+    for (const c of checks) if (c.ok) results.push(c.im);
+  }
+  return results;
+}
+
+// V35.1 AI-Image-Generation via Replicate Flux-Schnell (graceful skip wenn kein Token)
+async function generateAiImage(promptText, palette, aspect = '16:9', timeoutMs = 60_000) {
+  const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
+  if (!REPLICATE_API_TOKEN) return null;
+  try {
+    const fullPrompt = `${promptText}. Professional editorial photography. Color palette: primary ${palette.primary}, accent ${palette.accent}. Soft natural light, no people looking at camera, no text, no logos. Premium swiss quality.`;
+    const create = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}`, 'Content-Type': 'application/json', Prefer: 'wait' },
+      body: JSON.stringify({ input: { prompt: fullPrompt, aspect_ratio: aspect, output_format: 'webp', output_quality: 88, num_outputs: 1 } }),
+    });
+    if (!create.ok) { console.log('[V35.1 AI-Gen] create failed:', create.status); return null; }
+    const data = await create.json();
+    let url = null;
+    if (Array.isArray(data.output) && data.output.length) url = data.output[0];
+    else if (typeof data.output === 'string') url = data.output;
+    if (!url && data.urls?.get) {
+      const t0 = Date.now();
+      while (Date.now() - t0 < timeoutMs) {
+        await new Promise(r => setTimeout(r, 2000));
+        const poll = await fetch(data.urls.get, { headers: { Authorization: `Bearer ${REPLICATE_API_TOKEN}` } });
+        if (!poll.ok) break;
+        const pd = await poll.json();
+        if (pd.status === 'succeeded' && pd.output) {
+          url = Array.isArray(pd.output) ? pd.output[0] : pd.output;
+          break;
+        }
+        if (pd.status === 'failed' || pd.status === 'canceled') break;
+      }
+    }
+    return url || null;
+  } catch (e) {
+    console.log('[V35.1 AI-Gen] exception:', e.message);
+    return null;
+  }
+}
+
+// V35.1 Image-Pool-Builder mit 3-Tier-Hierarchie ---------------------
+function buildHybridPoolPrompt({ logo, authentic, stock, ai }) {
+  const lines = [];
+  lines.push('\n\n=== BILDER-POOLS (PFLICHT-AUSWAHL nach Hierarchie) ===\n');
+  lines.push('PRIORISIERUNGS-HIERARCHIE: AUTHENTIC (vom Kunden) > STOCK (Pexels) > AI (generiert).');
+  lines.push('Authentic-Pool BEVORZUGT fuer Header-Logo, Hero, Galerie, Team. Stock-Pool fuer Service-Cards + Avatars + Generic. AI-Pool nur wenn die anderen leer/unpassend.\n');
+  if (logo && logo.url) {
+    lines.push(`-- HEADER-LOGO (Pflicht im Header, Source: ${logo.source}) --`);
+    lines.push(`[LOGO] ${logo.url}\n`);
+  } else {
+    lines.push(`-- HEADER-LOGO --`);
+    lines.push(`(kein Logo gefunden; verwende Wordmark in Display-Font mit primary-Color als Logo-Ersatz)\n`);
+  }
+  if (authentic && authentic.length) {
+    lines.push(`-- AUTHENTIC POOL (vom Kunden, ${authentic.length} Bilder) --`);
+    authentic.forEach((im, i) => {
+      lines.push(`[AUTH_${i + 1}] role=${im.role} ${im.w}x${im.h} ${im.url} alt="${(im.alt || '').slice(0, 60)}"`);
+    });
+    lines.push(``);
+  } else {
+    lines.push(`-- AUTHENTIC POOL --`);
+    lines.push(`(keine Quality-passenden Prospect-Bilder gefunden; Hero+Galerie aus STOCK oder AI)\n`);
+  }
+  if (stock && stock.length) {
+    lines.push(`-- STOCK POOL (Pexels, ${stock.length} Bilder) --`);
+    stock.slice(0, 18).forEach((p, i) => {
+      lines.push(`[STOCK_${i + 1}] ${p.url} alt="${(p.alt || '').slice(0, 60)}"`);
+    });
+    lines.push(``);
+  }
+  if (ai && ai.length) {
+    lines.push(`-- AI-GENERATED POOL (${ai.length} Bilder, branche+palette-spezifisch) --`);
+    ai.forEach((u, i) => {
+      lines.push(`[AI_${i + 1}] ${u.url} role=${u.role} prompt="${(u.prompt || '').slice(0, 80)}"`);
+    });
+    lines.push(``);
+  }
+  lines.push('REGELN:');
+  lines.push('1. Verwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE images.unsplash.com erfinden. KEIN Cloudinary-Fetch-Wrap.');
+  lines.push('2. Authentic-Pool fuer Header-Logo, Hero, Galerie-Sektion, Team (wenn role=team vorhanden).');
+  lines.push('3. Stock-Pool fuer Service-Cards, Reviewer-Avatars, generische Detail-Shots, Fallback wenn Authentic leer.');
+  lines.push('4. AI-Pool nur fuer Sektionen wo weder Authentic noch Stock passt.');
+  lines.push('5. Wenn kein Logo: Wordmark der Firma in Display-Font mit primary-Color statt img.');
+  lines.push('=== END BILDER-POOLS ===\n');
+  return lines.join('\n');
 }
 
 // ─── Cloudinary URL-Builder ──────────────────────────────────
@@ -835,6 +1053,57 @@ async function main() {
 
   // V35: Branche-Sub-Profile-Lookup + Master-Prompt-Builder (2026-05-06)
   const profile = lookupProfile(branche, cluster.cluster);
+
+  // === V35.1: Hybrid-Image-Pool (Authentic > Stock > AI) ===
+  console.log('V35.1 STEP 3.5 Hybrid-Pool-Init');
+  // 1. Logo-Extraction
+  const logo = extractProspectLogo(scrape);
+  if (logo) {
+    const logoOk = await validateImageHead(logo.url);
+    globalThis.__VFS_LOGO = logoOk ? { url: cld(logo.url, 600), source: logo.source } : null;
+    console.log('  logo=' + (logoOk ? 'ok' : 'failed') + ' source=' + logo.source);
+  } else {
+    globalThis.__VFS_LOGO = null;
+    console.log('  logo=none-found');
+  }
+  // 2. Authentic-Pool (Quality-Gate + Validation)
+  const scoredAuth = scoreProspectImages(scrape.imagesRich || [], branche);
+  console.log('  scored authentic candidates: ' + scoredAuth.length);
+  const validAuth = await filterValidImages(scoredAuth, 6);
+  // Cloudinary-Wrap fuer Authentic (Hotlink-Schutz loesen)
+  globalThis.__VFS_AUTHENTIC_POOL = validAuth.slice(0, 10).map(im => ({
+    url: cld(im.url, im.role === 'hero' ? 2400 : 1600),
+    alt: im.alt,
+    w: im.w, h: im.h,
+    role: im.role,
+    score: im.score,
+  }));
+  console.log('  authentic-pool validated: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ' (roles: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(',') + ')');
+  // 3. AI-Gen-Trigger nur bei Lücken: kein Hero in Authentic + Pexels generic + REPLICATE_API_TOKEN gesetzt
+  const REPLICATE_TOKEN_SET = !!process.env.REPLICATE_API_TOKEN;
+  globalThis.__VFS_AI_POOL = [];
+  if (REPLICATE_TOKEN_SET) {
+    const hasAuthHero = globalThis.__VFS_AUTHENTIC_POOL.some(x => x.role === 'hero' && x.w >= 1400);
+    const heroNeedsAi = !hasAuthHero;
+    const galleryNeedsAi = globalThis.__VFS_AUTHENTIC_POOL.filter(x => x.role === 'gallery').length < 3;
+    const aiTargets = [];
+    if (heroNeedsAi) aiTargets.push({ role: 'hero', aspect: '16:9', prompt: `Editorial hero for ${profile.cluster_name} ${branche}: ${profile.image_mood}` });
+    if (galleryNeedsAi && aiTargets.length < 2) aiTargets.push({ role: 'gallery', aspect: '4:5', prompt: `Detail close-up for ${branche}: ${profile.image_mood.split(',')[0]}` });
+    console.log('  ai-targets: ' + aiTargets.length + ' (heroNeed=' + heroNeedsAi + ' galleryNeed=' + galleryNeedsAi + ')');
+    for (const t of aiTargets.slice(0, 2)) {
+      const aiUrl = await generateAiImage(t.prompt, profile.palette, t.aspect, 60_000);
+      if (aiUrl) {
+        globalThis.__VFS_AI_POOL.push({ url: aiUrl, role: t.role, prompt: t.prompt });
+        console.log('  ai-gen ok role=' + t.role + ' url=' + aiUrl.slice(0, 60));
+      } else {
+        console.log('  ai-gen failed role=' + t.role);
+      }
+    }
+  } else {
+    console.log('  ai-gen skipped (REPLICATE_API_TOKEN not set)');
+  }
+  // === END V35.1 Hybrid-Pool-Init ===
+
   console.log('STEP 4 V35-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
   const sys = buildV35SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL);
   const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
@@ -898,10 +1167,10 @@ async function main() {
     lifecycle_stage: sendRes.sent ? 'preview_sent' : 'deployed',
     branche_cluster: profile.slug,
     signature_effect: profile.signature_name,
-    design_thesis: 'V35 Sub-Profile-DNA: ' + profile.slug + ' / ' + profile.layout_dna.slice(0, 100),
+    design_thesis: 'V35.1 Hybrid-Pool: ' + profile.slug + ' / auth=' + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + ' stock=' + ((globalThis.__VFS_PEXELS_POOL || []).length) + ' ai=' + ((globalThis.__VFS_AI_POOL || []).length) + ' logo=' + (globalThis.__VFS_LOGO ? globalThis.__VFS_LOGO.source : 'none'),
     mail_subject: mailSubject,
     mail_body: mailBody,
-    prompt_version: 'v35_subprofile_2026-05-06',
+    prompt_version: 'v35_1_hybrid_pool_2026-05-06',
     pass_scores: passes,
     lighthouse_performance: lh.performance,
     lighthouse_accessibility: lh.accessibility,
