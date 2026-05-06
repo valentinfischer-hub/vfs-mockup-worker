@@ -382,7 +382,238 @@ function signatureSnippet(eff) {
   }
 }
 
-// V35 Master-System-Prompt-Builder
+// V37.0 Pre-Build-Audit: Sonnet analysiert Prospect-Site VOR HTML-Generation
+async function step0_audit(scrape, profile, prospect) {
+  const sys = 'Du bist Senior Web-Auditor. Lies die Prospect-Site-Daten und identifiziere konkret: was ist schwach, was muss MEINE neue Site exzellent machen, welche 3 Verbesserungs-Hebel haben hoechsten Impact. Output: JSON {"weak_points":["..."], "must_excel":["..."], "key_messages":["..."], "tone":"..."}. Antworte NUR mit JSON.';
+  const usr = 'Firma: ' + prospect.company + '\nBranche: ' + prospect.branche + '\nProfile: ' + profile.slug + '\n\nProspect-Site:\nTitle: ' + (scrape.title || '') + '\nDesc: ' + (scrape.description || '') + '\nText-Snippets:\n' + ((scrape.textSnippets || []).slice(0, 15).join('\n'));
+  try {
+    const res = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
+    inputTokensTotal += res.usage.input_tokens; outputTokensTotal += res.usage.output_tokens;
+    const txt = res.content?.filter(c => c.type === 'text').map(c => c.text).join('\n') || '';
+    const m = txt.match(/\{[\s\S]*\}/);
+    if (!m) return { weak_points: [], must_excel: [], key_messages: [], tone: profile.voice };
+    try { return JSON.parse(m[0]); } catch { return { weak_points: [], must_excel: [], key_messages: [], tone: profile.voice }; }
+  } catch (e) { console.log('[step0_audit]', e.message); return { weak_points: [], must_excel: [], key_messages: [], tone: profile.voice }; }
+}
+
+// V37.0 Master-System-Prompt mit 20 Best-Practices (XML-Tags, Persona-Switch, Anti-Pattern, Skeleton, Token-Budget, Self-Check)
+function buildV37SystemPrompt(profile, mockupId, supabaseUrl, prospectAudit) {
+  const p = profile;
+  const pal = p.palette;
+  const sig = signatureSnippet(p.signature_effekt);
+  const auditBlock = prospectAudit ? ('\n<prospect_audit>\nWeak-Points: ' + (prospectAudit.weak_points || []).slice(0, 3).join(' | ') + '\nMUSS exzellent: ' + (prospectAudit.must_excel || []).slice(0, 3).join(' | ') + '\nKey-Messages: ' + (prospectAudit.key_messages || []).slice(0, 3).join(' | ') + '\n</prospect_audit>\n') : '';
+  return `<role>
+Du bist hybrid: Editorial-Director (Layout) + Senior-Copywriter (Voice) + Premium-Frontend-Engineer (Code). Du baust eine Awwwards-SOTM-Premium-Mockup-Site fuer Schweizer KMU. Diese Site MUSS wirken wie ein gedrucktes Premium-Magazin im Browser.
+</role>
+
+<context>
+<branche>${p.cluster_name} / ${p.slug}</branche>
+<voice>${p.voice}</voice>
+<layout_dna>${p.layout_dna}</layout_dna>
+<hero_pattern>${p.hero_pattern}</hero_pattern>
+<image_mood>${p.image_mood}</image_mood>
+<treatment>${p.treatment}</treatment>
+<badges>${p.badges.join(' | ')}</badges>
+<color_palette>
+--primary: ${pal.primary}
+--accent: ${pal.accent}
+--dark: ${pal.dark}
+--light: ${pal.light}
+--neutral: ${pal.neutral}
+</color_palette>
+<typography>
+Display-Font (Fontshare): ${p.fontshare_pairing.split('+')[0].trim()}
+Body-Font (Fontshare): ${p.fontshare_pairing.split('+')[1].trim()}
+</typography>
+${auditBlock}</context>
+
+<anti_patterns>
+WAS NIE TUN (preemptive Warnung — diese Fehler haben fruehere Builds halbfertig wirken lassen):
+- Galerie unter 60 Worten oder ohne sichtbare figcaption auf jedem Bild
+- Section ohne Eyebrow + H2 + Sub-Quote (1-2 Saetze max 25 Worte)
+- Fake-Telefonnummer erfinden (nur wenn aus Scrape echt vorhanden, sonst weg lassen)
+- 50/50-Splits (IMMER 60/40 oder 70/30)
+- Generic-Smile-Stock-Photo im Hero (statt Body-Macro-Detail)
+- "Wir bieten..." als Sentence-Start (statt "Bei [Firma] [konkrete Aktion]")
+- Floskeln: Game-Changer, innovativ, Marktfuehrer, revolutionaer, spannend, toll, super, klasse, Synergien, ganzheitlich (>1x), nahtlos, state-of-the-art, world-class, Loesung, Mehrwert, Tradition trifft Moderne, Leidenschaft, Excellence
+- Section-Padding unter 80px desktop oder 50px mobile
+- Pricing sichtbar
+- Sektionen isoliert ohne visuelle Uebergaenge
+- Initial-Opacity 0 ohne Watchdog-Force-Trigger
+</anti_patterns>
+
+<storyboard>
+PFLICHT-Reihenfolge (rendere SEQUENTIELL, niemals zur naechsten Section bevor aktuelle KOMPLETT mit eyebrow+h2+sub+content+styling):
+
+1. <nav> sticky-shrink scroll>80, Logo links / 3-4 Nav-Links zentral / Termin-CTA rechts / Hamburger <768px
+2. <section id="hero" class="section-pad stagger load-seq"> Token-Budget 1500
+   - Eyebrow ("Branche · Stadt · seit Jahr")
+   - H1.typing-text data-text="Versprechen-Quote max 12 Worte"
+   - p.sub-quote (1-2 Saetze max 25 Worte)
+   - .stats-cluster (3-4 Stats: Zahl + Label)
+   - 2 CTAs (.btn-primary.btn-magnetic + .btn-secondary)
+   - .hero-image-wrap mit Body-Macro-Bild aus AUTH-Pool oder Hero-Stock
+3. <section id="trust" class="section-pad"> Token-Budget 1200
+   - Eyebrow + H2 + Trust-Statement + Cert-Badges-Row + 4-6 Stats
+4. <section id="ueber-uns" class="section-pad" style="background:var(--dark);color:var(--light)"> DARK-SECTION Token-Budget 1500
+   - Eyebrow + H2 (light) + 80-Wort-Story + 3 Werte-Cards mit je Eyebrow + Wert + 1-Satz
+   - Person-Foto 3:4 oder 4:5
+5. <marquee-ribbon class="marquee" data-marquee> Service-Namen oder Cert-Statements horizontal scrollend
+6. <section id="leistungen" class="section-pad stagger"> Token-Budget 2200
+   - Eyebrow + H2 + Sub-Quote
+   - 3-4 .service-card mit: Bild (Stock 4:5) + Eyebrow + h3 + 1-Satz-Was-passiert + 3-Punkt-Liste + a.btn-magnetic "Termin fuer [Service-Name]" zu Calendly
+7. <section id="booking" class="section-pad"> Token-Budget 1500
+   - Eyebrow + H2 + Sub "Termin in 2 Minuten"
+   - 3-Step Interactive: Service > Therapeut/Stylist > Slot
+   - Live-Summary panel
+   - .btn-confirm.btn-magnetic (disabled bis 3 gewaehlt)
+8. <section id="team" class="section-pad stagger cinema-reveal"> Token-Budget 1500
+   - Eyebrow + H2 + Sub
+   - 4 .team-card mit Foto 3:4 + Name + Rolle + 2-Satz-Specialty (max 30 Worte) + Years-Eyebrow
+9. <section id="galerie" class="section-pad"> Token-Budget 1800 — KRITISCH war frueher leer
+   - Eyebrow + H2 + 1-2-Satz-Praxisraum-Story
+   - 6-8 .gallery-item in .bento-grid (1 large + 5-7 small) mit JE figcaption (max 8 Worte, Pattern "[Raum] · [Atmosphaere] · [Detail]")
+10. <section id="reviews" class="section-pad" style="background:var(--neutral);color:var(--dark)"> Token-Budget 2200
+    - Eyebrow + H2 + Aggregate-Score (Sterne + Bewertung + Anzahl)
+    - 6 Testimonials mit Avatar + 5-Sterne + 30-50-Wort-Quote + Vorname-aus-Region
+11. <section id="standort" class="section-pad"> Token-Budget 1500
+    - Eyebrow + H2 + Sub
+    - .standort-grid 2-Column: Adresse / OEV (Linie+Haltestelle) / Auto (Parkplaetze) / Mail (klickbar) / Oeffnungszeiten als kompakte Tabelle
+    - <iframe Maps-iframe-PFLICHT (Adresse aus Scrape oder konkrete Strasse + Stadt)
+12. <section id="cta-final" class="section-pad" style="background:var(--primary);color:var(--light)"> Token-Budget 600
+    - H2 (light) + 1-Satz-Sub + .btn-magnetic Termin
+13. <section id="faq" class="section-pad"> Token-Budget 2500
+    - Eyebrow + H2 + Sub
+    - 5+ details/summary-Akkordion mit je Frage + 30+ Worte Antwort branchenrelevant
+14. <footer class="section-pad" style="background:var(--dark);color:var(--light)"> Token-Budget 800
+    - 3-Column: Brand+Adresse / Schnell-Links / Rechtliches+Social
+    - Tracking-Pixel HIER (siehe scripts unten)
+</storyboard>
+
+<personas_by_section>
+- nav, hero, ueber-uns: Editorial-Director-Modus (Layout-Hierarchie, asymm 60/40, Display-Quote)
+- trust, leistungen, faq, footer: Copywriter-Modus (Voice-Praezision, max 18 Worte/Satz, aktive Verben)
+- team, galerie, reviews, cta-final: Premium-Brand-Designer-Modus (Visuelle-Editorial, Bento, Dark-Sections)
+- booking, standort: Frontend-Engineer-Modus (semantisch korrekt, A11y, schemas)
+Wechsle mental die Persona pro Section und schreibe wie sie wuerden.
+</personas_by_section>
+
+<image_pool_mapping>
+Am Ende dieses System-Prompts findest du AUTH/STOCK/AI Bild-URLs. Verwende AUSSCHLIESSLICH diese:
+- Header-Logo: AUTH role=logo (sonst Wordmark in Display-Font mit primary)
+- Hero: AUTH role=hero (Body-Macro/Detail) > AI role=hero > STOCK_1 (Branche-Detail nicht generic-Smile)
+- Service-Cards (3-4): STOCK_2-5 (4:5 Portrait)
+- Galerie (6-8): AUTH role=gallery > STOCK_6-13 (gemischt 1:1, 3:4, 16:9)
+- Team (4): AUTH role=team > STOCK_14-17 (3:4 Portrait)
+- Reviewer-Avatars (6): STOCK_18-23 (1:1 round)
+NIEMALS images.unsplash.com erfinden.
+</image_pool_mapping>
+
+<spacing>
+Section-Padding: 100px desktop / 64px mobile (padding-block)
+Container: max-width 1320px, padding-inline 32px / 20px
+Hero-Hoehe: min(75vh, 720px) desktop / 70vh mobile
+H1-Margin-Bottom: 32px / 24px
+Inter-Section-Margin: 0 (Padding macht den Atem)
+</spacing>
+
+<typography_specs>
+H1: clamp(3.2rem, 8.5vw, 6.8rem), letter-spacing -0.03em, line-height 0.95, weight 700
+H2: clamp(2.4rem, 5vw, 4rem), letter-spacing -0.025em, line-height 1.05, weight 600
+H3: 1.5-1.75rem, weight 500
+Body: 17px desktop / 16px mobile, line-height 1.55
+Eyebrow: 0.78rem uppercase, letter-spacing 0.18em, weight 500
+Display-Quote: italic, max 2 Zeilen
+</typography_specs>
+
+<libraries_cdn_im_head>
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js"><\/script>
+<script src="https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js"><\/script>
+<script src="https://unpkg.com/splitting@1.0.6/dist/splitting.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"><\/script>
+</libraries_cdn_im_head>
+
+<premium_snippets_alle_7_pflicht>
+1. TYPING_HERO: span.typing-text mit data-text + Default-visible-Text + JS clearet+animiert
+2. MAGNETIC_BUTTONS: alle .btn-magnetic mit cursor-pull translate3d max 25%
+3. STAGGER_REVEAL: .stagger>* opacity 0.4 -> 1 mit IntersectionObserver + 600ms-Force-Trigger
+4. STICKY_CTA_MOBILE: bottom-fixed Termin-Bar bei <768px mit slide-up nach 800ms
+5. PARALLAX_HERO: .hero-image translate3d(0, scrollY*0.3, 0) mit RAF
+6. IMAGE_REVEAL_CINEMA: .cinema-reveal clip-path inset(0 30% 0 0) -> inset(0 0 0 0) mit 700ms-Force
+7. LOAD_SEQUENCE: body.is-loaded toggle via DOMContentLoaded + 800ms-Fallback, .load-seq[data-load-step="1/2/3"] mit transition-delay
+[Snippet-Code-Blocks identisch zu V36.5/V36.6 — kopieren ist OK]
+</premium_snippets_alle_7_pflicht>
+
+<signature_effekt>
+${p.signature_name} (effekt #${p.signature_effekt}):
+${sig}
+</signature_effekt>
+
+<visual_uebergaenge_mind_3_von_5>
+1. Marquee-Ribbon (horizontaler Lauftext zwischen 2 Sections) mit Service-Namen oder Vertrauens-Statements
+2. Vertical-Eyebrow am Section-Edge (writing-mode:vertical-rl)
+3. Quote-Block fullbleed (Italic, max 2 Lines, dunkler Background)
+4. Stat-Marquee (Stats horizontal scrollend)
+5. Image-Bridge (1 Bild fullbleed zwischen 2 Sections, ohne Container-Constraint)
+</visual_uebergaenge_mind_3_von_5>
+
+<chatbot_widget>
+Floating-Button bottom-right 60x60 (primary-color, Chat-Icon, 3s pulse). Panel 380x520 weiss + Editorial-shadow. Panel initial display:none. Klick Floating-Button toggelt auf display:flex. Panel-Header "Chat mit [Brand]" + "Demo · 24/7 · vf-services". 4 Chip-Fragen branchenrelevant. Bot-Message mit 3-Dot-Typing-Indicator. Close-Button schliesst.
+</chatbot_widget>
+
+<booking_calendly>
+ALLE Termin-Buttons href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener". Booking-Section MUSS zusaetzlich Calendly-iframe oder Link-Card haben.
+</booking_calendly>
+
+<mobile_first>
+Layout primaer fuer 380px Viewport. Touch-Targets min 48x48px. Hover-States haben tap-Variante. Hero-Stats horizontal scroll bei <500px. Hamburger bei <768px.
+</mobile_first>
+
+<sticky_nav>
+Header MUSS display:flex justify-content:space-between align-items:center. Logo links, Nav zentral/rechts, Termin-CTA ganz rechts. position:sticky top:0 z-index:1000. NIEMALS absolute positionierte Logos.
+</sticky_nav>
+
+<animations_fallback>
+Alle scroll-triggered Animationen MUESSEN nach 1.2s sichtbar sein auch bei IntersectionObserver-Fail. prefers-reduced-motion media-query als Reset (alle Anims off).
+</animations_fallback>
+
+<sprach_pflicht>
+Schweizer Hochdeutsch (ss statt sz). Echte Umlaute ä ö ü (NIE ae oe ue). Sie-Form. Keine Em-Dashes. Saetze max 18 Worte, Durchschnitt 12. Aktive Verben aus Voice. KEIN "Wir bieten..." sondern "Bei [Firma] [konkrete Aktion]". Lokaler Bezug Pflicht: mind. 3x Stadt/Quartier/Region. Mind. 4 Voice-Verben einsetzen. Wenn Daten fehlen: kuerzer schreiben statt faken.
+</sprach_pflicht>
+
+<tracking_pixel_vor_body_close>
+<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
+</tracking_pixel_vor_body_close>
+
+<self_check_vor_output>
+Bevor du Output finalisierst, gehe diese 10-Punkte-Liste mental durch und FIXE bei NEIN:
+1. Hat JEDE Section eyebrow + h2 + sub-quote? [JA/NEIN]
+2. Hat Galerie 6+ Bilder MIT sichtbarer figcaption (Pattern "[Raum] · [Atm] · [Detail]")? [JA/NEIN]
+3. Sind ALLE 7 Premium-Snippets eingebaut (typing-text, btn-magnetic, stagger, sticky-cta-mobile, cinema-reveal, load-seq, parallax)? [JA/NEIN]
+4. Ist mind. 1 Section background:var(--dark) (Dark-Section)? [JA/NEIN]
+5. Sind 3+ visuelle Uebergaenge (Marquee/Vertical-Eyebrow/Quote-Block/Stat-Marquee/Image-Bridge)? [JA/NEIN]
+6. Sind ALLE Forbidden-Words (Game-Changer, Mehrwert, ganzheitlich >1x, etc.) frei? [JA/NEIN]
+7. Sind ALLE Termin-Buttons href="https://calendly.com/valentin-fischer-vf-services/30min"? [JA/NEIN]
+8. Hat Standort Maps-iframe? [JA/NEIN]
+9. Hat JEDE Service-Card Mini-CTA "Termin fuer [Service]"? [JA/NEIN]
+10. Telefonnummer entweder echt aus Prospect-Site ODER weggelassen (NIEMALS fake)? [JA/NEIN]
+</self_check_vor_output>
+
+<final_pass_warning>
+Nach deiner Generation kommt ein Senior-Webdesigner-Final-Pass mit Opus 4.7 der ALLES nochmal reviewt + Bugs fixt. Du bist nicht alleine — ABER liefere bewusst sauber sodass der Final-Pass weniger zu fixen hat.
+</final_pass_warning>
+
+<expected_output_length>
+30000-35000 tokens HTML. Sequentielle Section-Generation.
+</expected_output_length>
+
+<output_format>
+Pures HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Keine Kommentare ueber das was du tust. Direkt DOCTYPE.
+</output_format>`;
+}
+
+// V35 Master-System-Prompt-Builder (LEGACY, in V37.0 abgeloest)
 function buildV35SystemPrompt(profile, mockupId, supabaseUrl) {
   const p = profile;
   const pal = p.palette;
@@ -1387,8 +1618,8 @@ OUTPUT: NUR komplettes finales HTML ab <!DOCTYPE html>. Keine Erklaerungen. Kein
 
   const usr = 'Firma: ' + prospect.company + '\nBranche: ' + prospect.branche + '\n\nFINALE HTML zum reviewen + fixen:\n\n' + html;
   try {
-    // V36.9: Opus 4.7 fuer Final-Pass (Premium-Quality), max_tokens 24k => Cap ~1.65 CHF
-    const fixed = stripCodeFence(await llm('claude-opus-4-7', sys, usr, 24000));
+    // V37.0: Opus 4.7 Final-Pass max_tokens 32k (Cost-Cap aufgehoben, Quality-First)
+    const fixed = stripCodeFence(await llm('claude-opus-4-7', sys, usr, 32000));
     if (fixed && fixed.length > 5000 && fixed.startsWith('<!DOCTYPE')) {
       console.log('  ✓ Final-Pass (Opus 4.7) fixed: ' + fixed.length + ' chars (input was ' + html.length + ')');
       return fixed;
@@ -1565,8 +1796,13 @@ async function main() {
   }
   // === END V35.1 Hybrid-Pool-Init ===
 
-  console.log('STEP 4 V35-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
-  const sys = buildV35SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL);
+  // V37.0: Pre-Build-Audit step0
+  console.log('STEP 0 V37.0 Pre-Build-Audit');
+  const prospectAudit = await step0_audit(scrape, profile, { company, branche });
+  console.log('  audit weak_points: ' + ((prospectAudit.weak_points || []).slice(0, 2).join('; ')));
+  console.log('  audit must_excel: ' + ((prospectAudit.must_excel || []).slice(0, 2).join('; ')));
+  console.log('STEP 4 V37-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
+  const sys = buildV37SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL, prospectAudit);
   const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
   // V36.4: 2-Variants generieren SEQUENZIELL (statt parallel) + Winner-Pick via Sonnet
   console.log('STEP 5 V36.4 2-Variants Sequenziell HTML-Gen + Winner-Pick');
