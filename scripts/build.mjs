@@ -608,7 +608,7 @@ async function step2_inspiration(cluster) {
 async function step3_images(cluster, scrape, inspiration) {
   const sys = 'Liefere Image-Plan als JSON. Verwende Unsplash-Photo-IDs Format https://images.unsplash.com/photo-XXXXXX. JSON nur: {"hero_image":"url","section_images":["url",...x8],"team_avatars":["url",...x4]}';
   const usr = 'Branche: ' + cluster.cluster_name + '\nFirma: ' + ((scrape && scrape.title) || '') + '\nVorhandene Site-Images: ' + ((scrape && scrape.images || []).slice(0,3).join(' | ')) + '\nColor-Akzent: ' + (inspiration.color_palette && inspiration.color_palette.accent || '') + '\n1 Hero, 8 Section, 4 Team-Avatars. NUR JSON.';
-  const r = await anthropic.messages.create({ model: 'claude-haiku-4-5-20251001', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
+  const r = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
   inputTokensTotal += r.usage.input_tokens; outputTokensTotal += r.usage.output_tokens;
   const txt = r.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const mi = txt.match(/\{[\s\S]*\}/);
@@ -1238,7 +1238,7 @@ async function runPasses(html, prospect) {
   const results = {};
   for (const [key, cfg] of Object.entries(passes)) {
     try {
-      const txt = await llm('claude-haiku-4-5-20251001', cfg.sys, `HTML (Auszug):\n${html.slice(0, 8000)}\n\nProspect: ${prospect.company}`, 600);
+      const txt = await llm('claude-sonnet-4-6', cfg.sys, `HTML (Auszug):\n${html.slice(0, 8000)}\n\nProspect: ${prospect.company}`, 600);
       const m = txt.match(/\{[\s\S]*\}/);
       const parsed = m ? JSON.parse(m[0]) : { score: 0, notes: 'parse-fail' };
       results[key] = `${parsed.score}/${cfg.max}`;
@@ -1293,9 +1293,9 @@ async function visualVerify(previewUrl, profile, prospect) {
   // V36.3 Sonnet-Hybrid: 3 Sonnet (visual_design, typo_hierarchy, brand_coherence) + 2 Haiku (mobile_ux, cta_visibility) + 1 Specialist
   const passes = {
     pass1_visual_design: { model: 'claude-sonnet-4-6', sys: 'Du bist Senior Webdesigner mit Awwwards-Erfahrung. Bewerte Layout/Hierarchie/Whitespace/Hero-Wow-Moment/Bento-Grid/asymm-Splits 60-40 oder 70-30 (NICHT 50-50)/Sticky-Side-Caption/Marquee-Ribbon/Vertical-Eyebrow. Premium-KMU-Anspruch. Score 0-30. JSON: {"score":n,"notes":"..."}', max: 30, image: desktopShot },
-    pass2_mobile_ux: { model: 'claude-haiku-4-5-20251001', sys: 'Du bist Mobile-UX-Experte. Bewerte Mobile-380px-Layout: Touch-Targets >=48px, Hamburger-Nav, Sticky-CTA-Bar bottom-fixed, Service-Cards stapelbar, Hero-Stats-Scroll, Chatbot-FAB klickbar (default-closed). Score 0-25. JSON: {"score":n,"notes":"..."}', max: 25, image: mobileShot },
+    pass2_mobile_ux: { model: 'claude-sonnet-4-6', sys: 'Du bist Mobile-UX-Experte. Bewerte Mobile-380px-Layout: Touch-Targets >=48px, Hamburger-Nav, Sticky-CTA-Bar bottom-fixed, Service-Cards stapelbar, Hero-Stats-Scroll, Chatbot-FAB klickbar (default-closed). Score 0-25. JSON: {"score":n,"notes":"..."}', max: 25, image: mobileShot },
     pass3_typo_hierarchy: { model: 'claude-sonnet-4-6', sys: 'Du bist Typografie-Experte. Bewerte Display-Font/Body-Font-Pairing (' + (profile.fontshare_pairing || 'erode + satoshi') + '), H1-clamp 3.2-6.8rem mit letter-spacing -0.03em, Variable-Font-Reveal-Animation, Eyebrow-Letterspacing 0.18em uppercase, Italic-Quotes, Typing-Hero-Effekt. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20, image: desktopShot },
-    pass4_cta_visibility: { model: 'claude-haiku-4-5-20251001', sys: 'Du bist Conversion-Experte. Bewerte Termin-Buttons (sichtbar oben+unten? Calendly-Link? primary-color? btn-magnetic-Klasse?), Booking-Sektion mit 3-Step-State-Machine, Chatbot-FAB initial geschlossen aber klickbar. Score 0-15. JSON: {"score":n,"notes":"..."}', max: 15, image: desktopShot },
+    pass4_cta_visibility: { model: 'claude-sonnet-4-6', sys: 'Du bist Conversion-Experte. Bewerte Termin-Buttons (sichtbar oben+unten? Calendly-Link? primary-color? btn-magnetic-Klasse?), Booking-Sektion mit 3-Step-State-Machine, Chatbot-FAB initial geschlossen aber klickbar. Score 0-15. JSON: {"score":n,"notes":"..."}', max: 15, image: desktopShot },
     pass5_brand_coherence: { model: 'claude-sonnet-4-6', sys: 'Du bist Brand-Designer. Bewerte ob Profile-Palette (' + profile.palette.primary + '/' + profile.palette.accent + '/' + profile.palette.dark + ') konsistent durchgezogen ist + Layout-DNA: ' + profile.layout_dna.slice(0, 100) + ' + Image-Treatment: ' + (profile.treatment || '').slice(0, 80) + '. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
     pass6_branche_specialist: { model: 'claude-sonnet-4-6', sys: 'Du bist Kunde aus der Branche ' + (prospect.branche || 'KMU') + '. Wuerdest du auf dieser Website einen Termin buchen? Bewerte Vertrauen, Klarheit der Leistungen, Professionalitaet. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
   };
@@ -1306,7 +1306,7 @@ async function visualVerify(previewUrl, profile, prospect) {
     if (!cfg.image) { results.passes[key] = `n/a (no-shot)/${cfg.max}`; totalMax += cfg.max; continue; }
     try {
       const res = await anthropic.messages.create({
-        model: cfg.model || 'claude-haiku-4-5-20251001',
+        model: cfg.model || 'claude-sonnet-4-6',
         max_tokens: 600,
         system: cfg.sys + ' Antworte NUR mit JSON, keine Erklaerung davor/danach.',
         messages: [{
