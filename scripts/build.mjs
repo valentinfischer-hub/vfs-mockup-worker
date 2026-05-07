@@ -851,13 +851,15 @@ const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 4, time
 // === V37.2.4 Global Anthropic-Retry-Wrapper ===
 const _origCreate = anthropic.messages.create.bind(anthropic.messages);
 const _origStream = anthropic.messages.stream.bind(anthropic.messages);
+// V37.5: Force Opus only — no Sonnet/Haiku fallback per user-decision 2026-05-07
 const MODEL_FALLBACK = {
-  'claude-opus-4-7': ['claude-opus-4-6', 'claude-sonnet-4-6'],
-  'claude-opus-4-6': ['claude-sonnet-4-6'],
-  'claude-sonnet-4-6': ['claude-haiku-4-5-20251001'],
+  'claude-opus-4-7': ['claude-opus-4-6'],
+  'claude-opus-4-6': [],
+  'claude-sonnet-4-6': [],
   'claude-haiku-4-5-20251001': [],
 };
-const RETRY_WAITS_MS = [30000, 60000, 120000, 240000];
+// V37.5: Exponential backoff 5 retries (30s/60s/120s/240s/480s = 15.5min total)
+const RETRY_WAITS_MS = [30000, 60000, 120000, 240000, 480000];
 function isOverloadedErr(e) { return e?.status === 529 || e?.status === 429 || /overloaded/i.test(e?.message || ''); }
 async function _retryCreate(args) {
   const origModel = args.model;
