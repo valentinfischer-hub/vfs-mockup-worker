@@ -424,6 +424,19 @@ REGEL 6 PREMIUM-NIVEAU TIER 3 ALWAYS: Awwwards-SOTM-Niveau, kein Tier-Gatekeeper
 
 REGEL 7 10 PFLICHT-SECTIONS in Reihenfolge: 1) Hero mit Signature-Effekt + KONZEPT-Badge + Hero-CTA, 2) Trust-Strip oder Story (Persönlichkeit, Awards), 3) Service-Cards mit "ab"-Preisen, 4) Booking-Flow oder Termin-Kalender (3-Step interactive), 5) Team oder Über-uns, 6) Reviews mit Sterne-Rating + echten Schweizer Namen, 7) Standort mit Google-Maps-iframe, 8) FAQ Akkordion mit mindestens 5 Fragen, 9) CTA-Block am Ende mit Calendly-Link, 10) Footer mit Adresse + Rechtliches.
 
+REGEL 9 V3.4 PREMIUM-MODUS TIER 3 ALWAYS: Jeder Mockup auf Awwwards-SOTM-Niveau, kein Tier-Gatekeeper, kein Run-Abbruch wegen fehlender Premium-Eignung. Wenn Original-Webseite generic, KMU-typisch oder stocklastig, hebe sie BEWUSST ins Premium-Vokabular.
+
+REGEL 10 HERO-ANIMATION SOFORT SICHTBAR: Im Hero, vor der Headline, ist mindestens EIN Signature-Effekt aktiv (Variable-Font-Reveal ODER WebGL-Distortion ODER Mesh-Gradient ODER Theatre.js-Scroll). Der Effekt muss direkt nach Page-Load animieren (auto-trigger im ersten Viewport). Pflicht-Code-Snippet im Hero einbauen, nicht nur referenzieren. Die "Animationen-am-Anfang"-User-Beschwerde wird damit fix.
+
+REGEL 11 UMLAUT-SELF-CHECK VOR OUTPUT: Vor dem finalen HTML-Output, gehe Wort-fuer-Wort durch und ersetze ALLE: ueber → über, fuer → für, moeglich → möglich, hoeher → höher, naechsten → nächsten, gespraech → gespräch, raeume → räume, gruesse → grüsse, persoenlich → persönlich, koennen → können, muessen → müssen, waeren → wären, taeglich → täglich, glueck → glück, fuehrung → führung, ueberzeugen → überzeugen, geschaeft → geschäft. Plus alle anderen ae/oe/ue Vorkommnisse im Body-Text. Nur in URLs und href-Slugs sind ae/oe/ue erlaubt. ZAEHLE deine Umlaute vor Output: muessen mind. 5 echte ä/ö/ü vorhanden sein, sonst regeneriere.
+
+REGEL 12 V3.4 LIBRARY-WHITELIST CDN-IMPORTS PFLICHT im <head>:
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=satoshi@400,500,700&f[]=erode@400,500,700&f[]=clash-display@500,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.0.42/dist/lenis.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@10.18.0/dist/motion.umd.js"></script>
+<script src="https://unpkg.com/splitting@1.0.6/dist/splitting.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/splitting@1.0.6/dist/splitting.css">
+
 REGEL 8 FORBIDDEN-WORDS: Diese Floskeln NIE verwenden: "innovativ", "ganzheitlich" (mehr als einmal), "nahtlos", "spannend", "toll", "Game-Changer", "Marktführer", "revolutionaer", "state-of-the-art", "Synergien", "Tradition trifft Moderne", "Leidenschaft", "auf Augenhöhe", "Mehrwert", "zukunftssicher", "Excellence". Stattdessen konkret beschreiben.
 </v37_5_absolute_rules>
 
