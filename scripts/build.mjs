@@ -1904,9 +1904,34 @@ async function main() {
   const firstName = m.first_name || leadData.first_name || '';
   const slug = slugify(`${branche}-${company}`);
 
-  // Scrape
+  // Scrape (V37.8: Asset-Aggregator + Puppeteer Fallback)
   console.log(`Scrape ${prospectUrl}`);
   const scrape = await scrapeProspect(prospectUrl);
+  
+  // V37.8: Asset-Aggregator (Firecrawl + Sketchfab + Spline-curated + Lottie-curated + V3.4-Spec)
+  scrape.v37_8_assets = null;
+  scrape.v37_8_spec = null;
+  try {
+    const aggResp = await fetch("https://kvtmkabkmouzljhsxgir.supabase.co/functions/v1/v37-8-asset-aggregator", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: prospectUrl, branche: m.branche || "business", cluster: m.branche_cluster || "F" }),
+      signal: AbortSignal.timeout(40000)
+    });
+    if (aggResp.ok) {
+      const agg = await aggResp.json();
+      if (agg.ok) {
+        scrape.v37_8_spec = agg.v37_8_spec;
+        scrape.v37_8_assets = {
+          firecrawl: agg.firecrawl,
+          sketchfab: agg.sketchfab_models || [],
+          spline: agg.spline_scenes_curated || [],
+          lottie: agg.lottie_files_curated || []
+        };
+        console.log("[V37.8 Aggregator] spec=" + (agg.v37_8_spec_length || 0) + "chars firecrawl=" + agg.meta.firecrawl_ok + " sketchfab=" + (agg.sketchfab_models || []).length + " spline=" + (agg.spline_scenes_curated || []).length + " lottie=" + (agg.lottie_files_curated || []).length);
+      }
+    }
+  } catch (e) { console.log("[V37.8 Aggregator] error: " + e.message); }
 
   // === BUILD V2 PATCH A: Multi-Step Pipeline ===
   console.log('STEP 1 Cluster');
