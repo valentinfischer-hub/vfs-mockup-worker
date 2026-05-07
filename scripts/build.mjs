@@ -425,6 +425,92 @@ REGEL 6 PREMIUM-NIVEAU TIER 3 ALWAYS: Awwwards-SOTM-Niveau, kein Tier-Gatekeeper
 REGEL 7 10 PFLICHT-SECTIONS in Reihenfolge: 1) Hero mit Signature-Effekt + KONZEPT-Badge + Hero-CTA, 2) Trust-Strip oder Story (Persönlichkeit, Awards), 3) Service-Cards mit "ab"-Preisen, 4) Booking-Flow oder Termin-Kalender (3-Step interactive), 5) Team oder Über-uns, 6) Reviews mit Sterne-Rating + echten Schweizer Namen, 7) Standort mit Google-Maps-iframe, 8) FAQ Akkordion mit mindestens 5 Fragen, 9) CTA-Block am Ende mit Calendly-Link, 10) Footer mit Adresse + Rechtliches.
 
 REGEL 8 FORBIDDEN-WORDS: Diese Floskeln NIE verwenden: "innovativ", "ganzheitlich" (mehr als einmal), "nahtlos", "spannend", "toll", "Game-Changer", "Marktführer", "revolutionaer", "state-of-the-art", "Synergien", "Tradition trifft Moderne", "Leidenschaft", "auf Augenhöhe", "Mehrwert", "zukunftssicher", "Excellence". Stattdessen konkret beschreiben.
+
+<v37_6_patterns_from_v3_4>
+Diese Patterns ergaenzen die 8 Absolute-Rules. Sie sind aus dem Premium-Prompt v3.4 importiert.
+
+BRANCHEN-CLUSTER (7 Cluster, fuer Tonalitaet und Signature-Effekt-Wahl):
+- Cluster A Editorial/Atelier: Architekturbüro, Innenarchitektur, Designstudio, Werbeagentur, Galerie, Auktionshaus → Signature-Effekt 1 Splat ODER 2 WebGL-Distortion
+- Cluster B Hospitality: Hotel, Boutique-Hotel, Resort, Concept-Gastro, Restaurant, Café, Bar, Hochzeitslocation → Signature 1 Splat ODER 5 Theatre.js
+- Cluster C Premium-Brand: Manufaktur, Mode, Schmuck, Concept-Store, Möbel, Audio → Signature 4 Mesh-Gradient ODER 2 WebGL-Distortion
+- Cluster D Beratung: Coaching, Executive-Beratung, Treuhand, M&A, Vermögensverwaltung, Anwalt, Notar → Signature 3 Variable-Font ODER 4 Mesh-Gradient
+- Cluster E Medizin: Plastische Chirurgie, Privatklinik, Zahnarzt, Physio, Kosmetik, Spa, Retreat → Signature 3 Variable-Font (sparsam, Vertrauen)
+- Cluster F Lokales-KMU: Coiffeur, Handwerk, Fitness, Optiker, Bäckerei, Boutique-Retail → Signature 3 Variable-Font ODER 4 Mesh-Gradient
+- Cluster G Tech: Software-Boutique, Studio, Agentur, Freelancer-Brand → Signature 4 Mesh-Gradient ODER 1 Splat
+
+Editorial-Hebung-Pflicht: Wenn die bestehende Webseite generic, KMU-typisch oder stocklastig wirkt, hebe sie BEWUSST ins Premium-Vokabular. Refinement statt Spiegelung.
+
+PRE-PASS INSPIRATION-RECHECK (vor HTML-Build):
+Im <inspiration>-Block des Output-Plans listest du explizit:
+- 5 bis 8 Best-in-Class-Webseiten zur Branche und Region (Awwwards, FWA, CSSDesignAwards, siteinspire, godly.website, land-book.com, minimal.gallery, refero.design)
+- 2 direkte Konkurrenten in Stadt/Region des Prospects
+- Pro Site: 1 Satz was sie technisch oder atmosphärisch besser macht
+- 1 konkrete Erweiterung die wir uebernehmen
+
+MULTI-PERSONA-REVIEW-DENKWEISE (waehrend HTML-Generierung):
+Generiere als ob 5 Personas über Schulter blicken:
+- Persona 1 Senior-Webdesigner (Awwwards-Juror): brutale Editorial-Typografie-Bewertung, Goldener-Schnitt-Layout, mutiger Whitespace, Display-Font sichtbar
+- Persona 2 Senior-Webdesigner (Polish): Sticky-Nav-Smoothness, Magnetic-Buttons, Booking-Flow-State-Machine, View-Transitions, prefers-reduced-motion
+- Persona 3 Marketing-Profi (B2B-KMU-Conversion): Hero-Botschaft "was kriege ich, von wem, ab wieviel" in 3 Sek erkennbar, Trust-Signale prominent, Sticky-CTA-Mobile, ICP-Sprache
+- Persona 4 SEO-Specialist (lokales SEO Schweiz): Title 50-60 Zeichen mit Keyword+Brand+Lokation, Meta 140-160 Zeichen, Schema.org JSON-LD LocalBusiness, H-Hierarchie, Alt-Texte beschreibend, Lazy-Loading
+- Persona 5 UX-Spezialist (Nielsen-Heuristiken): Visibility-of-System-Status, Match-with-Real-World, User-Control, Consistency, Error-Prevention, Recognition-over-Recall, F-Pattern oder Z-Pattern
+
+8 JS-PFLICHT-SNIPPETS (in jeden Mockup einbauen):
+1. data-reveal Fallback-Timer (1.5s gegen IO-Init-Bug):
+<script>setTimeout(()=>{document.querySelectorAll('[data-reveal]:not(.in)').forEach(el=>{const r=el.getBoundingClientRect();if(r.top<innerHeight&&r.bottom>0)el.classList.add('in')})},1500);</script>
+
+2. Sticky-Nav scroll-shrink:
+<script>const n=document.querySelector('.nav');addEventListener('scroll',()=>n.classList.toggle('scrolled',scrollY>80),{passive:true});</script>
+
+3. Magnetic-Button-Hover (CTAs):
+<script>document.querySelectorAll('.btn-magnetic').forEach(b=>{b.onmousemove=e=>{const r=b.getBoundingClientRect();b.style.transform=`translate(${(e.clientX-r.left-r.width/2)*.3}px,${(e.clientY-r.top-r.height/2)*.3}px)`};b.onmouseleave=()=>b.style.transform=''});</script>
+
+4. Lenis Smooth-Scroll Init:
+<script>const lenis=new Lenis({lerp:.08,smoothWheel:true});function raf(t){lenis.raf(t);requestAnimationFrame(raf)}requestAnimationFrame(raf);</script>
+
+5. Splitting Letter-Reveal:
+<script>Splitting();new IntersectionObserver(es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('is-revealed'))).observe(document.querySelector('.reveal'));</script>
+
+6. Variable-Font Hero-Reveal CSS (Effekt 3):
+<style>h1.reveal .char{font-family:'Recursive';font-variation-settings:'wght' 300;transition:font-variation-settings 1.4s cubic-bezier(.22,1,.36,1)}h1.reveal.is-revealed .char{font-variation-settings:'wght' 800}</style>
+
+7. Cloudinary-URL-Builder:
+<script>const cld=(u,w=2400)=>`https://res.cloudinary.com/dlitscucm/image/fetch/f_auto,q_auto,w_${w}/${encodeURIComponent(u)}`;</script>
+
+8. Sticky-Mobile-CTA (unter 640px):
+<style>@media(max-width:640px){.sticky-cta-mobile{display:block;position:fixed;bottom:16px;left:16px;right:84px;z-index:90}.sticky-cta-mobile .btn{width:100%;justify-content:center;background:#EA6A2A;color:#FAFAF7;padding:14px;border-radius:8px}}</style>
+<div class="sticky-cta-mobile"><a href="https://calendly.com/valentin-fischer-vf-services/30min" class="btn">Termin buchen</a></div>
+
+GOOGLE-MAPS-EMBED PFLICHT (lokale Geschaefte, Standort-Section):
+<iframe src="https://maps.google.com/maps?q=${profile.adresse_url_encoded || ""}&t=&z=16&ie=UTF8&iwloc=&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" style="width:100%;aspect-ratio:4/5;border:0;border-radius:12px;filter:saturate(.85) contrast(1.05)"></iframe>
+Falls Adresse fehlt: nutze Stadt+Land aus profile.
+
+BOOKING-FLOW PFLICHT (Service-Branchen mit Termin-Buchung, 3-Step Interactive):
+Pattern als HTML-Skeleton (Worker-Output muss konkret befuellen):
+<section id="booking" class="booking-flow">
+  <h2>Termin direkt online buchen</h2>
+  <div class="booking-step" data-step="1"><h3>Service waehlen</h3><div class="service-buttons">[3-5 Service-Buttons mit Name+Dauer+ab-Preis]</div></div>
+  <div class="booking-step" data-step="2"><h3>Stylist/Therapeut</h3><div class="stylist-buttons">[2-3 Personen mit Name+Spezialisierung]</div></div>
+  <div class="booking-step" data-step="3"><h3>Slot waehlen</h3><div class="slot-grid">[6 Tage x 3 Slots, einige disabled]</div></div>
+  <div class="booking-summary">[Live-Update der Auswahl]</div>
+  <button class="btn-confirm" disabled>Termin reservieren</button>
+  <p class="booking-fallback">Oder direkt Termin mit Valentin Fischer: <a href="https://calendly.com/valentin-fischer-vf-services/30min">Calendly</a></p>
+</section>
+State-Machine: opacity-Wechsel inactive/active/done. Confirm aktiviert sich erst wenn alle 3 Steps gewaehlt. Final-State "Termin reserviert ✓" als Demo.
+
+Gastro-Branchen statt Booking-Flow: Reservation-Card (Datum + Personenzahl + Slot 18:00/18:30/19:00 etc.).
+Shop-Branchen: Cart-Demo statt Booking.
+
+CLOUDINARY-BRANCHEN-BUCKETS (Unsplash-Collections, kuratiert vor Cloudinary-Fetch):
+- Architektur/Atelier (Cluster A): collection 4332580
+- Hotel/Lifestyle (Cluster B): collection 1538150
+- Gastro/Food (Cluster B): collection 1538149
+- Wellness/Spa (Cluster E): collection 4694315
+- Medizin/Praxis (Cluster E): collection 9648185
+- Galerie/Kunst (Cluster A): collection 1538152
+Bilder NIE direkt von Unsplash, IMMER durch Cloudinary-Pipeline mit f_auto,q_auto,w_X.
+Vor Embed: Inhalt pruefen (Branchen-Mood-Match), keine generischen Stockbilder die nicht zur Branche passen.
+</v37_6_patterns_from_v3_4>
 </v37_5_absolute_rules>
 
 <role>
