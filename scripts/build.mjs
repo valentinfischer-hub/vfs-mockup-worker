@@ -882,30 +882,52 @@ globalThis.fetch = async function(url, opts = {}) {
       const body = JSON.parse(opts.body);
       const hasAuth = Array.isArray(globalThis.__VFS_AUTHENTIC_POOL) && globalThis.__VFS_AUTHENTIC_POOL.length;
       const hasAi = Array.isArray(globalThis.__VFS_AI_POOL) && globalThis.__VFS_AI_POOL.length;
-      const hasStock = Array.isArray(globalThis.__VFS_PEXELS_POOL) && globalThis.__VFS_PEXELS_POOL.length;
+
+      // === V42 PATCH (a): Stock-Pool-Suppression bei starkem Authentic-Pool ===
+      // Wenn Authentic-Pool >= 4 Hero/Gallery-Photos hat, Pexels-Pool LEER lassen.
+      // Das eliminiert die Stock-Übermacht (24 Pexels vs 7 Authentic) die LLM zu Stock zog.
+      const heroOrGalleryAuth = (globalThis.__VFS_AUTHENTIC_POOL || []).filter(x => x.role === 'hero' || x.role === 'gallery').length;
+      const suppressStock = heroOrGalleryAuth >= 4;
+      const effectiveStock = suppressStock ? [] : (globalThis.__VFS_PEXELS_POOL || []);
+      const hasStock = effectiveStock.length;
+      if (suppressStock) {
+        console.log("[V42 PATCH a] Stock-Pool suppressed: " + (globalThis.__VFS_PEXELS_POOL || []).length + " Pexels removed because Authentic-Pool has " + heroOrGalleryAuth + " hero/gallery photos");
+      }
+
       if (body.system && (hasAuth || hasAi || hasStock)) {
         let inject = "";
         if ((hasAuth || hasAi || globalThis.__VFS_LOGO) && typeof buildHybridPoolPrompt === "function") {
           inject = buildHybridPoolPrompt({
             logo: globalThis.__VFS_LOGO || null,
             authentic: globalThis.__VFS_AUTHENTIC_POOL || [],
-            stock: globalThis.__VFS_PEXELS_POOL || [],
+            stock: effectiveStock,
             ai: globalThis.__VFS_AI_POOL || [],
           });
         } else if (hasStock && typeof buildImageWhitelistPrompt === "function") {
-          // Fallback Pexels-only (kompat zu V35-Builds ohne Hybrid-Init)
-          inject = buildImageWhitelistPrompt(globalThis.__VFS_PEXELS_POOL);
+          inject = buildImageWhitelistPrompt(effectiveStock);
         }
+
+        // === V42 PATCH (c): Authentic-Image-Rule als ABSOLUTE-DIRECTIVE am Prompt-ANFANG ===
+        let firstRule = "";
+        if (hasAuth && (globalThis.__VFS_AUTHENTIC_POOL || []).filter(x => x.role === 'hero' || x.role === 'gallery').length >= 1) {
+          const authPool = globalThis.__VFS_AUTHENTIC_POOL || [];
+          const heroUrls = authPool.filter(x => x.role === 'hero').map(x => x.url).slice(0, 1);
+          const galleryUrls = authPool.filter(x => x.role === 'gallery').map(x => x.url).slice(0, 6);
+          firstRule = "<v42_absolute_image_rule>\nBEFORE READING ANYTHING ELSE: Diese Webseite hat AUTHENTISCHE Hero- und Galerie-Fotos vom Lead. Sie MÜSSEN verwendet werden:\n\nHERO (Pflicht-Bild im Hero-Section):\n" + heroUrls.map(u => "- " + u).join("\n") + "\n\nGALLERY (Pflicht-Bilder in Galerie-Section, mind. 4):\n" + galleryUrls.map(u => "- " + u).join("\n") + "\n\nNIEMALS Pexels oder Stock-Bilder im Hero verwenden, wenn obige Authentic-URL existiert. NIEMALS Pexels in Galerie-Section. Verstoesse fuehren zu Mockup-Reject. Diese Regel ueberschreibt alle anderen Image-Pool-Anweisungen.\n</v42_absolute_image_rule>\n\n";
+        }
+
         const marker = "BILDER-POOLS";
         const oldMarker = "VERFUEGBARE BILDER";
         if (inject && typeof body.system === "string" && !body.system.includes(marker) && !body.system.includes(oldMarker)) {
-          body.system = body.system + inject;
+          // V42 (c): Image-Rule PREPEND, Pool-Block APPEND
+          body.system = firstRule + body.system + inject;
           opts = { ...opts, body: JSON.stringify(body) };
-          console.log("[V35.1] Hybrid-Pool injected: auth=" + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + " stock=" + ((globalThis.__VFS_PEXELS_POOL || []).length) + " ai=" + ((globalThis.__VFS_AI_POOL || []).length) + " logo=" + (globalThis.__VFS_LOGO ? "yes" : "no"));
+          console.log("[V42] Hybrid-Pool injected: auth=" + ((globalThis.__VFS_AUTHENTIC_POOL || []).length) + " stock=" + effectiveStock.length + " ai=" + ((globalThis.__VFS_AI_POOL || []).length) + " logo=" + (globalThis.__VFS_LOGO ? "yes" : "no") + " | absolute_rule=" + (firstRule ? "yes" : "no"));
         } else if (inject && Array.isArray(body.system) && !JSON.stringify(body.system).includes(marker)) {
+          if (firstRule) body.system.unshift({ type: "text", text: firstRule });
           body.system.push({ type: "text", text: inject });
           opts = { ...opts, body: JSON.stringify(body) };
-          console.log("[V35.1] Hybrid-Pool injected (array system)");
+          console.log("[V42] Hybrid-Pool injected (array system) | absolute_rule=" + (firstRule ? "yes" : "no"));
         }
       }
     } catch(e) { console.log("[V35.1] hybrid-inject failed:", e.message); }
@@ -2144,39 +2166,38 @@ async function main() {
   }));
   console.log('  authentic-pool validated: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ' (roles: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(',') + ')');
 
-  // === V41.1 HOTFIX: Direct-Inject Firecrawl-Photos als pre-tagged Pool-Entries ===
-  // Safety-Net falls scoreProspectImages-Pipeline die fc-photos nicht als hero/gallery taggt.
-  // fc-photos werden vor existing Pool-Entries gepusht, damit LLM sie zuerst sieht.
+  // === V42 PATCH (b): Direct-Inject Firecrawl-Photos als pre-tagged + Cloudinary-Wrap-All ===
+  // Safety-Net mit forciertem Cloudinary-Wrap auf alle authentic-pool entries.
+  // fc-photos prepended, role hero/gallery, cld() auf alle URLs (auch existing).
   if (Array.isArray(scrape.firecrawl_photos) && scrape.firecrawl_photos.length > 0) {
-    const existingUrls = new Set(globalThis.__VFS_AUTHENTIC_POOL.map(x => x.url));
     const fcPoolEntries = [];
+    const fcUrlsSet = new Set();
     for (let i = 0; i < scrape.firecrawl_photos.length; i++) {
       const url = scrape.firecrawl_photos[i];
       const role = i === 0 ? 'hero' : (i < 4 ? 'gallery' : 'generic');
       const cldUrl = cld(url, role === 'hero' ? 2400 : 1600);
-      // Skip wenn bereits drin (vermeide Duplikate trotz Cloudinary-Wrap)
-      if (existingUrls.has(cldUrl) || existingUrls.has(url)) {
-        // Update role wenn existing entry generic war
-        const existing = globalThis.__VFS_AUTHENTIC_POOL.find(x => x.url === cldUrl || x.url === url);
-        if (existing && existing.role === 'generic' && role !== 'generic') {
-          existing.role = role;
-          console.log('  [V41.1 fc-photo] role-upgraded existing: ' + role + ' for ' + url.slice(0, 60));
-        }
-        continue;
-      }
+      fcUrlsSet.add(url);
+      fcUrlsSet.add(cldUrl);
       fcPoolEntries.push({
         url: cldUrl,
-        alt: 'Firecrawl ' + role + ' photo',
+        alt: 'Authentic ' + role + ' photo from prospect site',
         w: 1600, h: 900,
         role,
-        score: 999, // Top-Priority
+        score: 999,
         source: 'firecrawl_v2'
       });
     }
-    // Prepend fc-Entries (höchste Priorität) vor existing pool
-    globalThis.__VFS_AUTHENTIC_POOL = [...fcPoolEntries, ...globalThis.__VFS_AUTHENTIC_POOL].slice(0, 12);
-    console.log('  [V41.1 fc-pool] direct-injected ' + fcPoolEntries.length + ' fc-photos as pre-tagged hero/gallery (pool now: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ')');
-    console.log('  authentic-pool roles after V41.1: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(','));
+    // V42 (b): Authentic-Pool aufbauen — fc-Entries first, danach existing (deduplicated, alle cld-wrapped)
+    const existingDeduped = globalThis.__VFS_AUTHENTIC_POOL
+      .filter(x => !fcUrlsSet.has(x.url))
+      .map(x => ({
+        ...x,
+        url: x.url.includes('cloudinary') ? x.url : cld(x.url, x.role === 'hero' ? 2400 : 1600)
+      }));
+    globalThis.__VFS_AUTHENTIC_POOL = [...fcPoolEntries, ...existingDeduped].slice(0, 12);
+    console.log('  [V42 fc-pool] fc-entries=' + fcPoolEntries.length + ' existing-deduped=' + existingDeduped.length + ' (pool now: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ')');
+    console.log('  [V42 fc-pool] roles: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(','));
+    console.log('  [V42 fc-pool] all-cld-wrapped: ' + globalThis.__VFS_AUTHENTIC_POOL.every(x => (x.url || '').includes('cloudinary') || (x.url || '').includes('res.cloudinary')));
   }
   // 3. AI-Gen-Trigger nur bei Lücken: kein Hero in Authentic + Pexels generic + REPLICATE_API_TOKEN gesetzt
   const REPLICATE_TOKEN_SET = !!process.env.REPLICATE_API_TOKEN;
