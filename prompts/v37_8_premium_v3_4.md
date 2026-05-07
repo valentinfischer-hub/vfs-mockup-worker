@@ -489,3 +489,238 @@ Allererstes Body-Element vor Nav:
 
 Erstes Element im Hero, vor Headline:
 `<div style="display:inline-block;background:#EA6A2A;color:#FAFAF7;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:24px">KONZEPT · Design-Entwurf</div>`
+
+
+---
+
+# V37.9 ERWEITERUNGEN 2026-05-07 (additiv zu V3.4)
+
+## BRANCHEN-SPECIFIC BOOKING-FLOW PFLICHT-CODE
+
+Pro Branchen-Cluster ein eigenes Booking-Pattern. KEIN generic "Termin"-Button — immer branchen-spezifisch.
+
+### Cluster B Hospitality (Restaurant, Café, Bar, Hotel)
+
+Reservation-Card Pflicht-Pattern:
+```html
+<section class="reservation-card" id="booking">
+  <h2>Tisch reservieren</h2>
+  <form class="reservation-form">
+    <div class="row">
+      <label>Datum<input type="date" name="datum" min=""></label>
+      <label>Personen<select name="pax"><option>2</option><option>3</option><option>4</option><option>5</option><option>6+</option></select></label>
+    </div>
+    <div class="slot-grid">
+      <button type="button" data-slot="18:00">18:00</button>
+      <button type="button" data-slot="18:30">18:30</button>
+      <button type="button" data-slot="19:00">19:00</button>
+      <button type="button" data-slot="19:30">19:30</button>
+      <button type="button" data-slot="20:00">20:00</button>
+      <button type="button" data-slot="20:30">20:30</button>
+    </div>
+    <button class="btn-primary" type="submit">Reservieren</button>
+    <p class="fallback-cta">Oder Termin mit Valentin von vf-services: <a href="https://calendly.com/valentin-fischer-vf-services/30min">Calendly</a></p>
+  </form>
+</section>
+```
+
+### Cluster F Lokales-KMU (Coiffeur, Beauty, Fitness)
+
+3-Step Booking-Flow:
+```html
+<section class="booking-3step" id="booking">
+  <h2>Termin online buchen</h2>
+  <div class="step" data-step="1"><h3>1. Service</h3><div class="service-buttons"><!-- 3-5 Services mit Name+Dauer+ab-Preis --></div></div>
+  <div class="step" data-step="2"><h3>2. Stylist/Therapeut</h3><div class="stylist-buttons"><!-- 2-3 Personen --></div></div>
+  <div class="step" data-step="3"><h3>3. Slot wählen</h3><div class="slot-grid"><!-- 6 Tage x 3 Slots --></div></div>
+  <div class="summary">Auswahl: <span class="live-summary"></span></div>
+  <button class="btn-confirm" disabled>Termin reservieren</button>
+  <p class="fallback-cta">Oder direkt mit Valentin: <a href="https://calendly.com/valentin-fischer-vf-services/30min">Calendly</a></p>
+</section>
+```
+
+### Cluster D Beratung & Service (Coaching, Anwalt, Coach)
+
+Calendly Inline-Embed:
+```html
+<section class="termin-section" id="booking">
+  <h2>Erstgespräch buchen</h2>
+  <p>30 Minuten unverbindlich, online oder vor Ort in Bern.</p>
+  <iframe src="https://calendly.com/valentin-fischer-vf-services/30min?embed=true&hide_event_type_details=1" width="100%" height="700" frameborder="0"></iframe>
+</section>
+```
+
+### Cluster A Editorial/Atelier (Architekt, Designstudio)
+
+Project-Inquiry-Form mit Calendly-Fallback:
+```html
+<section class="project-inquiry" id="booking">
+  <h2>Projekt-Anfrage</h2>
+  <form>
+    <input type="text" name="company" placeholder="Unternehmen" required>
+    <input type="email" name="email" placeholder="E-Mail" required>
+    <textarea name="vorhaben" placeholder="Vorhaben kurz beschreiben"></textarea>
+    <button class="btn-primary">Anfrage senden</button>
+  </form>
+  <p>Oder direkt 30 Min: <a href="https://calendly.com/valentin-fischer-vf-services/30min">Calendly</a></p>
+</section>
+```
+
+### Cluster E Medizin & Wellness (Praxis, Spa)
+
+Online-Termin mit Service-Auswahl:
+```html
+<section class="medical-booking" id="booking">
+  <h2>Termin online vereinbaren</h2>
+  <select name="behandlung"><option>Erstgespräch</option><option>Folgetermin</option></select>
+  <input type="date" name="datum" required>
+  <select name="zeit"><option>Vormittag</option><option>Nachmittag</option><option>Abend</option></select>
+  <input type="tel" name="phone" placeholder="Telefon" required>
+  <button class="btn-primary">Termin anfragen</button>
+  <p>Oder direkter Anruf: <a href="tel:0317001234">031 700 12 34</a></p>
+</section>
+```
+
+## CLUSTER-SPEZIFISCHE HERO-MANIFEST (1 Satz pro Branche, max 14 Wörter)
+
+Nach KONZEPT-Badge im Hero, vor Hauptheadline. Editorial-Tonalität.
+
+| Cluster | Manifest-Pattern |
+|---|---|
+| A Editorial/Atelier | "[Räume/Marken/Bilder] die [Verb], weil [Werte-Substantiv]." z.B. "Räume die nachklingen, weil Material erzählt." |
+| B Hospitality | "[Atmosphäre/Geste] für [Anlass/Moment]. [Ortsverortung]." z.B. "Eine Tafel für gute Stunden. Mitten in Baden." |
+| C Premium-Brand | "[Manufaktur-Verb]. [Material]. [Dauer/Generation]." z.B. "Geschmiedet. Massiv. Generationen." |
+| D Beratung & Service | "[Klient-Pain] gelöst durch [Methode-Substantiv]." z.B. "Klarheit, wenn der Kopf zu voll wird." |
+| E Medizin & Wellness | "[Körper-Geste] in [Atmosphäre-Substantiv]." z.B. "Bewegung in Ruhe. Stille als Therapie." |
+| F Lokales-KMU | "[Service-Promise] in [Stadt]. [Vertrauens-Anchor]." z.B. "Ihre Coiffure in Aarau. Seit 1987." |
+| G Tech & Digital | "[Outcome-Substantiv] durch [Tech-Methode]." z.B. "Skalierbare Systeme statt One-Off-Code." |
+
+## ANIMATION-CHOREOGRAFIE STRIKTER (V3.4 verschärft)
+
+V3.4 hatte spezifiziert, V37.9 macht es zur Pflicht-Code-Vorlage.
+
+### Hero-Stagger Pflicht-Code
+```js
+// Hero-Reveal-Choreografie: Eyebrow → Headline-Wörter → Sub → CTA
+const heroEyebrow = document.querySelector('.hero-eyebrow');
+const heroH1Words = document.querySelectorAll('.hero-h1 .word');
+const heroSub = document.querySelector('.hero-sub');
+const heroCTA = document.querySelector('.hero-cta');
+
+requestAnimationFrame(() => {
+  heroEyebrow.style.transition = 'opacity .8s, transform .8s';
+  heroEyebrow.style.opacity = 1;
+  heroEyebrow.style.transform = 'translateY(0)';
+  heroH1Words.forEach((w, i) => {
+    w.style.transition = 'opacity .9s ' + (i * 80) + 'ms, transform .9s ' + (i * 80) + 'ms';
+    w.style.opacity = 1;
+    w.style.transform = 'translateY(0)';
+  });
+  setTimeout(() => {
+    heroSub.style.transition = 'opacity 1s, transform 1s';
+    heroSub.style.opacity = 1;
+    heroSub.style.transform = 'translateY(0)';
+  }, 700);
+  setTimeout(() => {
+    heroCTA.style.transition = 'opacity 1s, transform 1s';
+    heroCTA.style.opacity = 1;
+    heroCTA.style.transform = 'translateY(0)';
+  }, 850);
+});
+```
+
+### Section-Reveals via IntersectionObserver
+```js
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const children = e.target.querySelectorAll('[data-stagger]');
+      children.forEach((c, i) => {
+        c.style.transition = 'opacity .8s ' + (i * 200) + 'ms, transform .8s ' + (i * 200) + 'ms';
+        c.style.opacity = 1;
+        c.style.transform = 'translateY(0)';
+      });
+      e.target.classList.add('in-view');
+    }
+  });
+}, { threshold: 0.15 });
+document.querySelectorAll('section').forEach(s => io.observe(s));
+```
+
+### Parallax-Hero-Image-Pflicht
+```js
+const heroImg = document.querySelector('.hero-image');
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (y < 800) heroImg.style.transform = 'translateY(' + (y * 0.3) + 'px)';
+}, { passive: true });
+```
+
+prefers-reduced-motion immer respektieren — alle Animationen abschalten:
+```css
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+```
+
+## VFS-BRAND-IDENTITÄT DURCHGÄNGIG
+
+### Footer-Block Pflicht (vfs-Brand sichtbar)
+
+```html
+<footer class="vfs-footer">
+  <div class="footer-grid">
+    <div class="brand-col">
+      <h3>{{COMPANY}}</h3>
+      <p>{{ADRESSE_FULL}}</p>
+      <p><a href="tel:{{PHONE}}">{{PHONE}}</a></p>
+    </div>
+    <div class="open-col">
+      <h4>Öffnungszeiten</h4>
+      <ul><li>Mo-Fr: 09:00-18:00</li><li>Sa: nach Vereinbarung</li></ul>
+    </div>
+    <div class="legal-col">
+      <h4>Rechtliches</h4>
+      <ul><li><a href="#">Impressum</a></li><li><a href="#">Datenschutz</a></li><li><a href="#">AGB</a></li></ul>
+    </div>
+  </div>
+  <div class="vfs-watermark">
+    <p>Webdesign & Konzept: <a href="https://vf-services.ch" target="_blank" style="color:#EA6A2A;font-weight:600">vf-services</a> · KMU-Webseiten ab 290 CHF/Mt</p>
+  </div>
+</footer>
+<style>
+  .vfs-footer{background:#0A0A0A;color:#FAFAF7;padding:80px 24px 40px}
+  .footer-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:48px}
+  .vfs-watermark{margin-top:48px;padding-top:24px;border-top:1px solid #2D2D2D;text-align:center;font-size:13px;color:#888}
+  @media(max-width:768px){.footer-grid{grid-template-columns:1fr;gap:32px}}
+</style>
+```
+
+### Spacing-Style-Guide (durchgängig)
+
+- Section-Padding desktop: 120px (vertical) / 32px (horizontal)
+- Section-Padding mobile: 80px (vertical) / 16px (horizontal)
+- Container max-width: 1280px
+- Element-Abstände: 8 / 16 / 24 / 32 / 48 / 64 / 96 / 120 (8-Pixel-Grid)
+- Border-Radius: 4px / 8px / 12px (nie 16px+)
+
+### Color-System Pflicht (zusätzlich zu branche-Palette)
+
+```css
+:root {
+  /* vfs-Brand-Tokens (PFLICHT-Layer) */
+  --vfs-bg: #FAFAF7;
+  --vfs-accent: #EA6A2A;
+  --vfs-text-dark: #0A0A0A;
+  --vfs-text-mid: #2D2D2D;
+  /* Branche-Palette overrides nur für Hero-Hintergrund + Akzent-Details */
+}
+```
+
+vfs-Akzent #EA6A2A immer für CTA-Buttons (auch wenn Branche andere Akzent-Farbe hat). Branchen-Akzent für Hero/Section-Backgrounds.
+
+### Logo-Watermark im Hero (subtil)
+
+```html
+<div class="hero-watermark" style="position:absolute;bottom:24px;right:24px;opacity:.4;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--vfs-text-mid)">Webdesign · vf-services.ch</div>
+```
