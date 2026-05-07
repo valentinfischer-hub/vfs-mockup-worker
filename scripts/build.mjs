@@ -2086,7 +2086,8 @@ async function main() {
 
   // Seite 2 (vereinfachte Variante)
   const seite2Sys = `${sys}\nFuer Seite 2: branchen-spezifische Unterseite (Leistungen/Team/Portfolio). Selbe Navigation/Footer wie Home.`;
-  const seite2 = stripCodeFence(await llm('claude-sonnet-4-6', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 18000));
+  // V37.9 Force-Opus: Seite 2 nutzt Opus 4.7 (Premium-HTML)
+  const seite2 = stripCodeFence(await llm('claude-opus-4-7', seite2Sys, usr + '\n\nAufgabe: Seite 2.', 18000));
   const seite2Html = seite2.startsWith('<!DOCTYPE') ? seite2 : `<!DOCTYPE html>\n${seite2}`;
 
   // Deploy
