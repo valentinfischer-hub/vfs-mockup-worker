@@ -1483,9 +1483,13 @@ function scoreProspectImages(imagesRich, branche) {
     }
     if (score < 8) continue; // V35.2: 10→8 (toleranter)
     let role = 'generic';
-    if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) role = 'hero';
+    // V41.1 HOTFIX: forceRole von Firecrawl-Photo-Injection respektieren
+    if (im.forceRole) role = im.forceRole;
+    else if (im.ctx === 'header' || heroHint.test(im.cls || '') || heroHint.test(im.url)) role = 'hero';
     else if (im.ctx === 'gallery' || galleryHint.test(im.cls || '') || galleryHint.test(im.url)) role = 'gallery';
     else if (teamHint.test(im.cls || '') || teamHint.test(im.alt || '')) role = 'team';
+    // V41.1 HOTFIX: forceRole gibt Score-Boost damit fc-photos im Sort-Ranking oben landen
+    if (im.forceRole) score += 100;
     out.push({ url: im.url, alt: im.alt || '', w, h: im.h || 0, role, score });
   }
   return out.sort((a, b) => b.score - a.score).slice(0, 12);
@@ -2078,26 +2082,39 @@ async function main() {
     }
   }
   console.log('  total imagesRich after fallback: ' + workingImagesRich.length);
-  // === V41 PATCH 4: Inject Firecrawl-Photos in Authentic-Pool ===
-  // Firecrawl /v2 sieht Lazy-Load-Bilder die Puppeteer verpasst. Photos werden mit
-  // hohen Default-Dimensions injected, validateImageHead+image-size pruefen real.
+  // === V41.1 PATCH 4 HOTFIX: Inject OR Augment Firecrawl-Photos in Authentic-Pool ===
+  // Bug-Fix: bei URL-Match in seen-Set, augmente existing entry statt zu skippen.
+  // Puppeteer findet manche URLs aber mit naturalWidth=0 (Lazy-Load), wir wissen via
+  // Firecrawl /v2 dass es echte Hero-Photos sind und setzen Dimensions hoch.
   if (Array.isArray(scrape.firecrawl_photos) && scrape.firecrawl_photos.length > 0) {
-    const seen = new Set(workingImagesRich.map(x => x.url));
-    let injected = 0;
-    for (const url of scrape.firecrawl_photos) {
-      if (seen.has(url)) continue;
-      // Default 1600x900 (Hero-Tier) damit scoreProspectImages und Quality-Gate akzeptieren
-      // Real-Dimensions werden via validateImageHead+image-size in filterValidImages bestimmt
-      workingImagesRich.push({
-        url, ctx: 'fc-photo', w: 1600, h: 900,
-        cls: 'firecrawl-photo', alt: '', src: url,
-        naturalWidth: 1600, naturalHeight: 900
-      });
-      seen.add(url);
-      injected++;
+    let injected = 0, augmented = 0;
+    for (let i = 0; i < scrape.firecrawl_photos.length; i++) {
+      const url = scrape.firecrawl_photos[i];
+      // Force-Role: erste Photo = hero, naechste 3 = gallery, rest = generic
+      const forceRole = i === 0 ? 'hero' : (i < 4 ? 'gallery' : 'generic');
+      const existing = workingImagesRich.find(x => x.url === url);
+      if (existing) {
+        // Augmente existing entry mit hohen Default-Dimensionen
+        existing.w = 1600;
+        existing.h = 900;
+        existing.naturalWidth = 1600;
+        existing.naturalHeight = 900;
+        existing.ctx = 'fc-photo';
+        existing.cls = 'firecrawl-photo-augmented';
+        existing.forceRole = forceRole;
+        augmented++;
+      } else {
+        workingImagesRich.push({
+          url, ctx: 'fc-photo', w: 1600, h: 900,
+          cls: 'firecrawl-photo', alt: '', src: url,
+          naturalWidth: 1600, naturalHeight: 900,
+          forceRole
+        });
+        injected++;
+      }
     }
     scrape.imagesRich = workingImagesRich;
-    console.log('  [V41 PATCH 4] firecrawl-photos injected: ' + injected + ' (total imagesRich now: ' + workingImagesRich.length + ')');
+    console.log('  [V41.1 PATCH 4] firecrawl-photos: injected=' + injected + ' augmented=' + augmented + ' (total imagesRich now: ' + workingImagesRich.length + ')');
   }
   for (let di = 0; di < Math.min(workingImagesRich.length, 8); di++) {
     const im = workingImagesRich[di];
@@ -2126,6 +2143,41 @@ async function main() {
     score: im.score,
   }));
   console.log('  authentic-pool validated: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ' (roles: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(',') + ')');
+
+  // === V41.1 HOTFIX: Direct-Inject Firecrawl-Photos als pre-tagged Pool-Entries ===
+  // Safety-Net falls scoreProspectImages-Pipeline die fc-photos nicht als hero/gallery taggt.
+  // fc-photos werden vor existing Pool-Entries gepusht, damit LLM sie zuerst sieht.
+  if (Array.isArray(scrape.firecrawl_photos) && scrape.firecrawl_photos.length > 0) {
+    const existingUrls = new Set(globalThis.__VFS_AUTHENTIC_POOL.map(x => x.url));
+    const fcPoolEntries = [];
+    for (let i = 0; i < scrape.firecrawl_photos.length; i++) {
+      const url = scrape.firecrawl_photos[i];
+      const role = i === 0 ? 'hero' : (i < 4 ? 'gallery' : 'generic');
+      const cldUrl = cld(url, role === 'hero' ? 2400 : 1600);
+      // Skip wenn bereits drin (vermeide Duplikate trotz Cloudinary-Wrap)
+      if (existingUrls.has(cldUrl) || existingUrls.has(url)) {
+        // Update role wenn existing entry generic war
+        const existing = globalThis.__VFS_AUTHENTIC_POOL.find(x => x.url === cldUrl || x.url === url);
+        if (existing && existing.role === 'generic' && role !== 'generic') {
+          existing.role = role;
+          console.log('  [V41.1 fc-photo] role-upgraded existing: ' + role + ' for ' + url.slice(0, 60));
+        }
+        continue;
+      }
+      fcPoolEntries.push({
+        url: cldUrl,
+        alt: 'Firecrawl ' + role + ' photo',
+        w: 1600, h: 900,
+        role,
+        score: 999, // Top-Priority
+        source: 'firecrawl_v2'
+      });
+    }
+    // Prepend fc-Entries (höchste Priorität) vor existing pool
+    globalThis.__VFS_AUTHENTIC_POOL = [...fcPoolEntries, ...globalThis.__VFS_AUTHENTIC_POOL].slice(0, 12);
+    console.log('  [V41.1 fc-pool] direct-injected ' + fcPoolEntries.length + ' fc-photos as pre-tagged hero/gallery (pool now: ' + globalThis.__VFS_AUTHENTIC_POOL.length + ')');
+    console.log('  authentic-pool roles after V41.1: ' + globalThis.__VFS_AUTHENTIC_POOL.map(x => x.role).join(','));
+  }
   // 3. AI-Gen-Trigger nur bei Lücken: kein Hero in Authentic + Pexels generic + REPLICATE_API_TOKEN gesetzt
   const REPLICATE_TOKEN_SET = !!process.env.REPLICATE_API_TOKEN;
   globalThis.__VFS_AI_POOL = [];
