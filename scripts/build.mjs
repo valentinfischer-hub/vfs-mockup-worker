@@ -941,7 +941,8 @@ async function llmWithSearch(system, userPrompt, maxIterations) {
   let iter = 0;
   let lastText = '';
   while (iter < maxIterations + 2) {
-    const res = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 8000, system, messages, tools });
+    // V37.9 Force-Opus: HTML-Iter-Loop nutzt Opus 4.7 statt Sonnet (Premium-Pflicht)
+    const res = await anthropic.messages.create({ model: 'claude-opus-4-7', max_tokens: 8000, system, messages, tools });
     inputTokensTotal += res.usage.input_tokens;
     outputTokensTotal += res.usage.output_tokens;
     for (const b of res.content) if (b.type === 'server_tool_use' && b.name === 'web_search') webSearchCalls++;
