@@ -387,7 +387,7 @@ async function step0_audit(scrape, profile, prospect) {
   const sys = 'Du bist Senior Web-Auditor. Lies die Prospect-Site-Daten und identifiziere konkret: was ist schwach, was muss MEINE neue Site exzellent machen, welche 3 Verbesserungs-Hebel haben hoechsten Impact. Output: JSON {"weak_points":["..."], "must_excel":["..."], "key_messages":["..."], "tone":"..."}. Antworte NUR mit JSON.';
   const usr = 'Firma: ' + prospect.company + '\nBranche: ' + prospect.branche + '\nProfile: ' + profile.slug + '\n\nProspect-Site:\nTitle: ' + (scrape.title || '') + '\nDesc: ' + (scrape.description || '') + '\nText-Snippets:\n' + ((scrape.textSnippets || []).slice(0, 15).join('\n'));
   try {
-    const res = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
+    const res = await anthropic.messages.create({ model: 'claude-opus-4-7', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
     inputTokensTotal += res.usage.input_tokens; outputTokensTotal += res.usage.output_tokens;
     const txt = res.content?.filter(c => c.type === 'text').map(c => c.text).join('\n') || '';
     const m = txt.match(/\{[\s\S]*\}/);
@@ -699,6 +699,68 @@ Pures HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Keine Komm
 </output_format>`;
 }
 
+// V40 Single-Source-Prompt: V3.4-Spec ist Hauptbasis. vfs-Add-Ons als kompakter Overlay.
+// Eliminiert Layer-Sandwich (Override + V37-Body + V3.4-Append) der Konflikte erzeugte.
+function buildV40SystemPrompt(profile, mockupId, supabaseUrl, prospectAudit, v34spec, v40_assets, prospect) {
+  const company = (prospect && prospect.company) || profile.company || profile.firma || 'das Unternehmen';
+  const auditBlock = prospectAudit ? ('\n<prospect_audit>\nWeak-Points: ' + (prospectAudit.weak_points || []).slice(0, 3).join(' | ') + '\nMUSS exzellent: ' + (prospectAudit.must_excel || []).slice(0, 3).join(' | ') + '\nKey-Messages: ' + (prospectAudit.key_messages || []).slice(0, 3).join(' | ') + '\n</prospect_audit>\n') : '';
+  return v34spec + `
+
+<v40_vfs_overlay>
+Diese vfs-spezifischen Pflicht-Erweiterungen gelten ZUSÄTZLICH zur V3.4-Spec oben. Bei Konflikt zwischen V3.4-Spec und V40-Overlay dominiert V40-Overlay (vfs-Brand-Identitaet + Compliance + Authentic-Image-Rule sind nicht verhandelbar).
+
+REGEL V40-A · VORSCHAU-BANNER: Direkt nach <body>, VOR <nav>, dieser sticky-Banner pflicht.
+<div style="position:sticky;top:0;z-index:9999;background:#0A0A0A;color:#FAFAF7;text-align:center;padding:10px 16px;font-size:13px;font-weight:500;letter-spacing:0.02em">VORSCHAU · Design-Entwurf von vf-services für ${company} · Finale Inhalte, Bilder und Konfiguration im Go-Live</div>
+
+REGEL V40-B · KONZEPT-BADGE: ERSTES Element im Hero (vor Headline). Orange-Pille pflicht.
+<div style="display:inline-block;background:#EA6A2A;color:#FAFAF7;padding:6px 14px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:24px">KONZEPT · Design-Entwurf</div>
+
+REGEL V40-C · HERO-CTA: Pflicht direkt nach Sub-Headline, exaktes Wording, exakter Calendly-Link.
+<a href="https://calendly.com/valentin-fischer-vf-services/30min" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:10px;background:#EA6A2A;color:#FAFAF7;padding:18px 36px;font-size:18px;font-weight:600;border-radius:8px;text-decoration:none;box-shadow:0 8px 24px rgba(234,106,42,.3);transition:transform .25s,box-shadow .25s">Termin mit vf-services buchen <span style="font-size:22px">→</span></a>
+Plus mind. 4 weitere Calendly-Buttons (nach Service-Section, nach Reviews, im Footer, als Sticky-Mobile-Bottom-Bar).
+
+REGEL V40-D · VFS-BRAND-FARBEN: Pflicht-CSS-Variablen am Anfang von :root (zusätzlich zu Branche-Palette aus V3.4):
+:root{--vfs-orange:#EA6A2A;--vfs-offwhite:#FAFAF7;--vfs-dark:#0A0A0A;--vfs-secondary:#2D2D2D}
+Body-Background MUSS #FAFAF7 sein. Alle CTA-Buttons MÜSSEN background #EA6A2A mit color #FAFAF7. Body-Text MUSS color #0A0A0A sein.
+
+REGEL V40-E · UMLAUTE HARD: ä ö ü ss IMMER. NIE ae oe ue im Body-Text/Headlines/Caption. NUR in URLs, href, CSS-Slugs sind ae/oe/ue erlaubt. Vor Output: jedes Wort prüfen, falsche umschreiben (Beispiele: "ueber" → "über", "fuer" → "für", "Erstgespraech" → "Erstgespräch", "Raeume" → "Räume", "moeglich" → "möglich").
+
+REGEL V40-F · FORBIDDEN-WORDS HARD-STOP (zusätzlich zu V3.4 forbidden):
+Game-Changer, innovativ, Marktführer, revolutionaer/revolutionär, ganzheitlich (max 1x in der Site), nahtlos, state-of-the-art, world-class, Mehrwert, "Tradition trifft Moderne", Excellence, Synergien, Lösung (sparsam), Leidenschaft, spannend, toll, super, klasse.
+
+REGEL V40-G · AUTHENTIC-IMAGE-POOL (KRITISCH, V40-PATCH-B):
+Im "BILDER-POOLS"-Block am Ende dieses Prompts findest du AUTHENTIC, STOCK, AI Bilder mit Width/Role-Metadata.
+Strikte Hierarchie:
+- Wenn AUTHENTIC enthält Bilder mit width >= 800: PFLICHT diese als Hero und Galerie-Bilder. NIEMALS Pexels-Stock im Hero, wenn AUTHENTIC eine Hero-taugliche Foto bietet.
+- Logos und Social-Icons (width < 200) aus AUTHENTIC werden NICHT für Hero/Galerie verwendet (aber ggf. fürs Header-Logo).
+- Pexels-Stock NUR für Reviewer-Avatars und Service-Card-Detail-Shots, wenn AUTHENTIC dafür nichts hat.
+- AI-Bilder NUR wenn AUTHENTIC + STOCK leer für die Sektion sind.
+- Am Ende des HTML als HTML-Comment den Image-Usage-Count: <!-- V40 IMAGE-USAGE: auth=N stock=M ai=K -->
+
+REGEL V40-H · SECTIONS-PFLICHT in dieser Reihenfolge (zusätzlich zu V3.4 sections):
+1) Hero mit Signature-Effekt + KONZEPT-Badge + Hero-CTA + AUTHENTIC-Bild
+2) Trust-Strip oder Story
+3) Service-Cards (kein Pricing)
+4) Booking-Flow oder Termin-Kalender (3-Step interactive)
+5) Team oder Über-uns
+6) Reviews mit Sterne-Rating + echten Schweizer Namen (regional)
+7) Standort mit Google-Maps-iframe
+8) FAQ Akkordion (mind. 5 Fragen)
+9) CTA-Block am Ende mit Calendly-Link
+10) Footer mit Adresse + Rechtliches
+
+REGEL V40-I · TRACKING-PIXEL: Pflicht direkt vor </body>:
+<img src="${supabaseUrl}/functions/v1/mockup-tracker?m=${mockupId}&e=view" width=1 height=1 style="position:absolute;left:-9999px;">
+
+REGEL V40-J · OUTPUT: Komplettes HTML ab <!DOCTYPE html>. Keine Erklärungen. Keine Code-Fences \`\`\`html. Direkt DOCTYPE. Mind. 10 sichtbare Bilder. KEIN Pricing/Preis sichtbar.
+${auditBlock}
+</v40_vfs_overlay>
+
+<v40_curated_assets>
+${JSON.stringify(v40_assets || {}, null, 2)}
+</v40_curated_assets>`;
+}
+
 // V35 Master-System-Prompt-Builder (LEGACY, in V37.0 abgeloest)
 function buildV35SystemPrompt(profile, mockupId, supabaseUrl) {
   const p = profile;
@@ -959,7 +1021,7 @@ async function llmWithSearch(system, userPrompt, maxIterations) {
 async function step1_cluster(record, scrape) {
   const sys = 'Du bist Branchen- und Webdesign-Experte. Bestimme Cluster + Signature-Effekt fuer einen Schweizer KMU.\nCLUSTER: A Editorial/Atelier (Architekt,Galerie,Designstudio) | B Hospitality (Hotel,Restaurant,Cafe) | C Premium-Brand (Manufaktur,Mode,Schmuck) | D Beratung (Coaching,Anwalt,Treuhand) | E Medizin/Wellness (Praxis,Spa,Yoga,Physio) | F Lokales KMU (Coiffeur,Handwerk,Fitness) | G Tech/Digital\nSIGNATURE-EFFEKT (genau einer): 1 Splat (Three.js gsplat - Architektur,Hotel,Atelier) | 2 WebGL-Distortion (Curtains.js - Premium-Brand,Galerie,Designstudio) | 3 Variable-Font Reveal (Recursive - Editorial,Coaching,Verlag) | 4 Mesh-Gradient + Letter-Reveal (Whatamesh+Splitting - Concept-Brand,Tech-Boutique,Beratung) | 5 Theatre.js-Scroll (Hotel,Erlebnismarken,Storytelling)\nOutput JSON nur: {"cluster":"E","cluster_name":"Medizin/Wellness","signature_effekt":3,"signature_name":"Variable-Font Reveal","editorial_hebung":"...","design_thesis":"max 25 Worte"}';
   const usr = 'Firma: ' + (record.company || '') + '\nBranche: ' + (record.branche || '') + '\nEmail: ' + record.email + '\nReply-Signal: ' + (record.signal || '') + '\nBestehende Site Title: ' + (scrape && scrape.title || '') + '\nHeadlines: ' + ((scrape && scrape.headlines || []).slice(0,3).join(' | '));
-  const r = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 800, system: sys, messages: [{ role: 'user', content: usr }] });
+  const r = await anthropic.messages.create({ model: 'claude-opus-4-7', max_tokens: 800, system: sys, messages: [{ role: 'user', content: usr }] });
   inputTokensTotal += r.usage.input_tokens; outputTokensTotal += r.usage.output_tokens;
   const txt = r.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const mm = txt.match(/\{[\s\S]*\}/);
@@ -1005,7 +1067,7 @@ async function step2_inspiration(cluster) {
 async function step3_images(cluster, scrape, inspiration) {
   const sys = 'Liefere Image-Plan als JSON. Verwende Unsplash-Photo-IDs Format https://images.unsplash.com/photo-XXXXXX. JSON nur: {"hero_image":"url","section_images":["url",...x8],"team_avatars":["url",...x4]}';
   const usr = 'Branche: ' + cluster.cluster_name + '\nFirma: ' + ((scrape && scrape.title) || '') + '\nVorhandene Site-Images: ' + ((scrape && scrape.images || []).slice(0,3).join(' | ')) + '\nColor-Akzent: ' + (inspiration.color_palette && inspiration.color_palette.accent || '') + '\n1 Hero, 8 Section, 4 Team-Avatars. NUR JSON.';
-  const r = await anthropic.messages.create({ model: 'claude-sonnet-4-6', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
+  const r = await anthropic.messages.create({ model: 'claude-opus-4-7', max_tokens: 1500, system: sys, messages: [{ role: 'user', content: usr }] });
   inputTokensTotal += r.usage.input_tokens; outputTokensTotal += r.usage.output_tokens;
   const txt = r.content.filter(c => c.type === 'text').map(c => c.text).join('\n');
   const mi = txt.match(/\{[\s\S]*\}/);
@@ -1720,12 +1782,12 @@ async function visualVerify(previewUrl, profile, prospect) {
 
   // V36.3 Sonnet-Hybrid: 3 Sonnet (visual_design, typo_hierarchy, brand_coherence) + 2 Haiku (mobile_ux, cta_visibility) + 1 Specialist
   const passes = {
-    pass1_visual_design: { model: 'claude-sonnet-4-6', sys: 'Du bist Senior Webdesigner mit Awwwards-Erfahrung. Bewerte Layout/Hierarchie/Whitespace/Hero-Wow-Moment/Bento-Grid/asymm-Splits 60-40 oder 70-30 (NICHT 50-50)/Sticky-Side-Caption/Marquee-Ribbon/Vertical-Eyebrow. Premium-KMU-Anspruch. Score 0-30. JSON: {"score":n,"notes":"..."}', max: 30, image: desktopShot },
-    pass2_mobile_ux: { model: 'claude-sonnet-4-6', sys: 'Du bist Mobile-UX-Experte. Bewerte Mobile-380px-Layout: Touch-Targets >=48px, Hamburger-Nav, Sticky-CTA-Bar bottom-fixed, Service-Cards stapelbar, Hero-Stats-Scroll, Chatbot-FAB klickbar (default-closed). Score 0-25. JSON: {"score":n,"notes":"..."}', max: 25, image: mobileShot },
-    pass3_typo_hierarchy: { model: 'claude-sonnet-4-6', sys: 'Du bist Typografie-Experte. Bewerte Display-Font/Body-Font-Pairing (' + (profile.fontshare_pairing || 'erode + satoshi') + '), H1-clamp 3.2-6.8rem mit letter-spacing -0.03em, Variable-Font-Reveal-Animation, Eyebrow-Letterspacing 0.18em uppercase, Italic-Quotes, Typing-Hero-Effekt. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20, image: desktopShot },
-    pass4_cta_visibility: { model: 'claude-sonnet-4-6', sys: 'Du bist Conversion-Experte. Bewerte Termin-Buttons (sichtbar oben+unten? Calendly-Link? primary-color? btn-magnetic-Klasse?), Booking-Sektion mit 3-Step-State-Machine, Chatbot-FAB initial geschlossen aber klickbar. Score 0-15. JSON: {"score":n,"notes":"..."}', max: 15, image: desktopShot },
-    pass5_brand_coherence: { model: 'claude-sonnet-4-6', sys: 'Du bist Brand-Designer. Bewerte ob Profile-Palette (' + profile.palette.primary + '/' + profile.palette.accent + '/' + profile.palette.dark + ') konsistent durchgezogen ist + Layout-DNA: ' + profile.layout_dna.slice(0, 100) + ' + Image-Treatment: ' + (profile.treatment || '').slice(0, 80) + '. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
-    pass6_branche_specialist: { model: 'claude-sonnet-4-6', sys: 'Du bist Kunde aus der Branche ' + (prospect.branche || 'KMU') + '. Wuerdest du auf dieser Website einen Termin buchen? Bewerte Vertrauen, Klarheit der Leistungen, Professionalitaet. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
+    pass1_visual_design: { model: 'claude-opus-4-7', sys: 'Du bist Senior Webdesigner mit Awwwards-Erfahrung. Bewerte Layout/Hierarchie/Whitespace/Hero-Wow-Moment/Bento-Grid/asymm-Splits 60-40 oder 70-30 (NICHT 50-50)/Sticky-Side-Caption/Marquee-Ribbon/Vertical-Eyebrow. Premium-KMU-Anspruch. Score 0-30. JSON: {"score":n,"notes":"..."}', max: 30, image: desktopShot },
+    pass2_mobile_ux: { model: 'claude-opus-4-7', sys: 'Du bist Mobile-UX-Experte. Bewerte Mobile-380px-Layout: Touch-Targets >=48px, Hamburger-Nav, Sticky-CTA-Bar bottom-fixed, Service-Cards stapelbar, Hero-Stats-Scroll, Chatbot-FAB klickbar (default-closed). Score 0-25. JSON: {"score":n,"notes":"..."}', max: 25, image: mobileShot },
+    pass3_typo_hierarchy: { model: 'claude-opus-4-7', sys: 'Du bist Typografie-Experte. Bewerte Display-Font/Body-Font-Pairing (' + (profile.fontshare_pairing || 'erode + satoshi') + '), H1-clamp 3.2-6.8rem mit letter-spacing -0.03em, Variable-Font-Reveal-Animation, Eyebrow-Letterspacing 0.18em uppercase, Italic-Quotes, Typing-Hero-Effekt. Score 0-20. JSON: {"score":n,"notes":"..."}', max: 20, image: desktopShot },
+    pass4_cta_visibility: { model: 'claude-opus-4-7', sys: 'Du bist Conversion-Experte. Bewerte Termin-Buttons (sichtbar oben+unten? Calendly-Link? primary-color? btn-magnetic-Klasse?), Booking-Sektion mit 3-Step-State-Machine, Chatbot-FAB initial geschlossen aber klickbar. Score 0-15. JSON: {"score":n,"notes":"..."}', max: 15, image: desktopShot },
+    pass5_brand_coherence: { model: 'claude-opus-4-7', sys: 'Du bist Brand-Designer. Bewerte ob Profile-Palette (' + profile.palette.primary + '/' + profile.palette.accent + '/' + profile.palette.dark + ') konsistent durchgezogen ist + Layout-DNA: ' + profile.layout_dna.slice(0, 100) + ' + Image-Treatment: ' + (profile.treatment || '').slice(0, 80) + '. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
+    pass6_branche_specialist: { model: 'claude-opus-4-7', sys: 'Du bist Kunde aus der Branche ' + (prospect.branche || 'KMU') + '. Wuerdest du auf dieser Website einen Termin buchen? Bewerte Vertrauen, Klarheit der Leistungen, Professionalitaet. Score 0-10. JSON: {"score":n,"notes":"..."}', max: 10, image: desktopShot },
   };
 
   const results = { total: 0, passes: {}, notes: [] };
@@ -1934,6 +1996,20 @@ async function main() {
     }
   } catch (e) { console.log("[V37.8 Aggregator] error: " + e.message); }
 
+  // === V40 PATCH 2: Persist scrape_notes + firecrawl_status ===
+  try {
+    const heroSize = (scrape.imagesRich || []).filter(im => (im.naturalWidth || im.width || 0) >= 800).length;
+    const totalImg = (scrape.images || []).length;
+    const richImg = (scrape.imagesRich || []).length;
+    const ogOk = !!scrape.ogImage;
+    const fcOk = !!(scrape.v37_8_assets?.firecrawl?.markdown);
+    const fcLen = scrape.v37_8_assets?.firecrawl?.markdown?.length || 0;
+    const notes = `prospect=${prospectUrl} | images=${totalImg} | imagesRich=${richImg} | hero_eligible(>=800px)=${heroSize} | ogImage=${ogOk} | firecrawl_ok=${fcOk} | firecrawl_md_len=${fcLen}`;
+    const fcStatus = fcOk ? `ok (${fcLen} chars)` : (scrape.v37_8_assets?.firecrawl ? 'partial' : 'fail');
+    await sb('PATCH', `pending_previews?id=eq.${MOCKUP_ID}`, { scrape_notes: notes, firecrawl_status: fcStatus });
+    console.log("[V40 PATCH 2] persisted scrape_notes + firecrawl_status: " + fcStatus);
+  } catch (e) { console.log("[V40 PATCH 2] persist error: " + e.message); }
+
   // === BUILD V2 PATCH A: Multi-Step Pipeline ===
   console.log('STEP 1 Cluster');
   const cluster = await step1_cluster(m, scrape);
@@ -2043,7 +2119,12 @@ async function main() {
   console.log('  audit weak_points: ' + ((prospectAudit.weak_points || []).slice(0, 2).join('; ')));
   console.log('  audit must_excel: ' + ((prospectAudit.must_excel || []).slice(0, 2).join('; ')));
   console.log('STEP 4 V37-Prompt: profile=' + profile.slug + ' sig=' + profile.signature_name + ' pal=' + profile.palette.primary + '/' + profile.palette.accent);
-  const sys = buildV37SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL, prospectAudit) + (scrape.v37_8_spec ? ("\n\n<v37_8_full_spec_v3_4_reproduce_1to1>\n" + scrape.v37_8_spec + "\n</v37_8_full_spec_v3_4_reproduce_1to1>\n\n<v37_8_curated_assets>\n" + JSON.stringify(scrape.v37_8_assets || {}, null, 2) + "\n</v37_8_curated_assets>") : "");
+  // V40 Switch: Wenn V3.4-Spec verfügbar, nutze V40 Single-Source-Prompt (V3.4 als Hauptbasis + minimaler vfs-Overlay).
+  // Sonst Fallback auf V37 Layer-Sandwich (Override-Prefix + V37-Body).
+  const sys = scrape.v37_8_spec
+    ? buildV40SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL, prospectAudit, scrape.v37_8_spec, scrape.v37_8_assets, m)
+    : buildV37SystemPrompt(profile, MOCKUP_ID, VFS_SUPABASE_URL, prospectAudit);
+  console.log("[V40 SWITCH] using " + (scrape.v37_8_spec ? "V40 Single-Source-Prompt (V3.4 + vfs-overlay)" : "V37 Layer-Sandwich (fallback)"));
   const usr = `Firma: ${company}\nBranche: ${branche}\nSub-Profile: ${profile.slug} (${profile.cluster_name})\nProspect-URL: ${prospectUrl}\nReply-Signal: ${m.signal || ''}\n\nProfile-Voice: ${profile.voice}\nProfile-Layout-DNA: ${profile.layout_dna}\nProfile-Image-Mood: ${profile.image_mood}\nProfile-Hero-Pattern: ${profile.hero_pattern}\nProfile-Cert-Badges: ${profile.badges.join(' | ')}\n\nCurated Hero-Image: ${curated.hero_image}\nCurated Section-Images: ${(curated.section_images || []).slice(0,8).join(', ')}\nCurated Team-Avatars: ${(curated.team_avatars || []).join(', ')}\n\nGescrapte Site-Daten (Inspiration fuer lokal-konkrete Inhalte):\nTitle: ${scrape.title}\nDesc: ${scrape.description}\nText-Snippets:\n${(scrape.textSnippets||[]).slice(0,12).join('\n')}\n\nAUFGABE: Baue index.html komplett. 9 Pflicht-Sektionen + Footer in der vorgegebenen Reihenfolge. Profile-Color-Palette (genau diese 5 Hex) sind die Pflicht-Tokens. Layout-DNA + Hero-Pattern + 5 Layout-Muster (mind. 4 von 5) konsequent umsetzen. Voice-Verben aus Profile mind. 4 verschiedene einsetzen. Mind. 3x lokaler Bezug auf Stadt/Quartier/Region. Forbidden-Words HARD-STOP. Output: pures HTML ab <!DOCTYPE html>.`;
   // V36.4: 2-Variants generieren SEQUENZIELL (statt parallel) + Winner-Pick via Sonnet
   console.log('STEP 5 V36.4 2-Variants Sequenziell HTML-Gen + Winner-Pick');
@@ -2060,7 +2141,7 @@ async function main() {
     // Sonnet pickt Winner basierend auf Profile-Fit
     try {
       const pickRes = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6', max_tokens: 200,
+        model: 'claude-opus-4-7', max_tokens: 200,
         system: 'Du bist Senior Webdesigner. Bewerte 2 HTML-Varianten fuer Schweizer KMU-Mockup nach Layout-DNA-Match (' + profile.layout_dna.slice(0, 100) + ') + Premium-Wirkung. Antworte NUR mit JSON: {"winner":"A"|"B","reason":"..."}',
         messages: [{ role: 'user', content: 'Variant A (' + htmlA.length + ' chars):\n' + htmlA.slice(0, 4000) + '\n\nVariant B (' + htmlB.length + ' chars):\n' + htmlB.slice(0, 4000) + '\n\nWelche passt besser zum Profile ' + profile.slug + '?' }],
       });
@@ -2191,7 +2272,7 @@ async function main() {
   const costChf = (inputTokensTotal * 3 + outputTokensTotal * 15) / 1_000_000 * 0.9;
   await sb('POST', 'cost_log', {
     agent_name: 'vfs_mockup_worker_github',
-    model: 'claude-sonnet-4-6',
+    model: 'claude-opus-4-7',
     input_tokens: inputTokensTotal,
     output_tokens: outputTokensTotal,
     cost_chf: Math.round(costChf * 1000) / 1000,
