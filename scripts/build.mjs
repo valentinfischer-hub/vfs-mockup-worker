@@ -1996,19 +1996,41 @@ async function main() {
     }
   } catch (e) { console.log("[V37.8 Aggregator] error: " + e.message); }
 
-  // === V40 PATCH 2: Persist scrape_notes + firecrawl_status ===
+  // === V41 PATCH 2+3: Persist scrape_notes + Firecrawl-Image-Augmentation ===
+  // V41: Extract echte Hero/Gallery-Photos aus fc.images_array per Heuristik.
+  // Firecrawl JSON-Schema-Hero-Tagging tagged faelschlich Logos als hero, daher Heuristik.
   try {
+    const fc = scrape.v37_8_assets?.firecrawl || {};
+    const fcImgs = fc.images_array || [];
+    const fcMdLen = fc.markdown_length || (fc.markdown_full || '').length || 0;
+    const fcHeroCount = (fc.hero_images || []).length;
+    const fcGalleryCount = (fc.gallery_images || []).length;
+
+    // V41 Photo-Detection-Heuristik
+    function isLikelyPhoto(url) {
+      if (typeof url !== 'string') return false;
+      const u = url.toLowerCase();
+      const skipPatterns = ['logo', 'icon', 'favicon', '_efefef', 'square_3', 'white-on-', 'transparent', 'tripadvisor', 'facebook-icon', 'instagram-icon', 'cropped-', 'apple-touch'];
+      if (skipPatterns.some(p => u.includes(p))) return false;
+      if (!/\.(jpg|jpeg|webp|avif)(\?|$)/i.test(u)) return false;
+      if (/\/wp-content\/uploads\/\d{4}\/\d{2}\//.test(u)) return true;
+      if (/\/(uploads|media|files|images|gallery)\//.test(u)) return true;
+      return true;
+    }
+
+    const fcPhotos = fcImgs.filter(isLikelyPhoto).slice(0, 8);
+    console.log(`[V41 Firecrawl-Photos] aggregator returned ${fcImgs.length} URLs, ${fcPhotos.length} pass Photo-Heuristik`);
+    scrape.firecrawl_photos = fcPhotos;
+
     const heroSize = (scrape.imagesRich || []).filter(im => (im.naturalWidth || im.width || 0) >= 800).length;
     const totalImg = (scrape.images || []).length;
     const richImg = (scrape.imagesRich || []).length;
     const ogOk = !!scrape.ogImage;
-    const fcOk = !!(scrape.v37_8_assets?.firecrawl?.markdown);
-    const fcLen = scrape.v37_8_assets?.firecrawl?.markdown?.length || 0;
-    const notes = `prospect=${prospectUrl} | images=${totalImg} | imagesRich=${richImg} | hero_eligible(>=800px)=${heroSize} | ogImage=${ogOk} | firecrawl_ok=${fcOk} | firecrawl_md_len=${fcLen}`;
-    const fcStatus = fcOk ? `ok (${fcLen} chars)` : (scrape.v37_8_assets?.firecrawl ? 'partial' : 'fail');
+    const notes = `V41 prospect=${prospectUrl} | puppeteer_imgs=${totalImg} | puppeteer_rich=${richImg} | puppeteer_hero_eligible(>=800px)=${heroSize} | ogImage=${ogOk} | firecrawl_md_len=${fcMdLen} | firecrawl_imgs=${fcImgs.length} | firecrawl_photos_filtered=${fcPhotos.length} | firecrawl_hero_json=${fcHeroCount} | firecrawl_gallery_json=${fcGalleryCount}`;
+    const fcStatus = fcMdLen > 0 ? `v41_ok (${fcMdLen}chars, ${fcPhotos.length}photos)` : 'fail';
     await sb('PATCH', `pending_previews?id=eq.${MOCKUP_ID}`, { scrape_notes: notes, firecrawl_status: fcStatus });
-    console.log("[V40 PATCH 2] persisted scrape_notes + firecrawl_status: " + fcStatus);
-  } catch (e) { console.log("[V40 PATCH 2] persist error: " + e.message); }
+    console.log("[V41 PATCH 2+3] persisted: " + fcStatus + " | " + fcPhotos.length + " photos extracted");
+  } catch (e) { console.log("[V41 PATCH 2+3] persist error: " + e.message); }
 
   // === BUILD V2 PATCH A: Multi-Step Pipeline ===
   console.log('STEP 1 Cluster');
@@ -2056,7 +2078,28 @@ async function main() {
     }
   }
   console.log('  total imagesRich after fallback: ' + workingImagesRich.length);
-  for (let di = 0; di < Math.min(workingImagesRich.length, 5); di++) {
+  // === V41 PATCH 4: Inject Firecrawl-Photos in Authentic-Pool ===
+  // Firecrawl /v2 sieht Lazy-Load-Bilder die Puppeteer verpasst. Photos werden mit
+  // hohen Default-Dimensions injected, validateImageHead+image-size pruefen real.
+  if (Array.isArray(scrape.firecrawl_photos) && scrape.firecrawl_photos.length > 0) {
+    const seen = new Set(workingImagesRich.map(x => x.url));
+    let injected = 0;
+    for (const url of scrape.firecrawl_photos) {
+      if (seen.has(url)) continue;
+      // Default 1600x900 (Hero-Tier) damit scoreProspectImages und Quality-Gate akzeptieren
+      // Real-Dimensions werden via validateImageHead+image-size in filterValidImages bestimmt
+      workingImagesRich.push({
+        url, ctx: 'fc-photo', w: 1600, h: 900,
+        cls: 'firecrawl-photo', alt: '', src: url,
+        naturalWidth: 1600, naturalHeight: 900
+      });
+      seen.add(url);
+      injected++;
+    }
+    scrape.imagesRich = workingImagesRich;
+    console.log('  [V41 PATCH 4] firecrawl-photos injected: ' + injected + ' (total imagesRich now: ' + workingImagesRich.length + ')');
+  }
+  for (let di = 0; di < Math.min(workingImagesRich.length, 8); di++) {
     const im = workingImagesRich[di];
     console.log('    [' + di + '] ctx=' + im.ctx + ' w=' + im.w + ' cls=' + (im.cls || '').slice(0, 30) + ' url=' + (im.url || '').slice(0, 80));
   }
