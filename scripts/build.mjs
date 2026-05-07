@@ -1891,9 +1891,37 @@ async function main() {
   const firstName = m.first_name || leadData.first_name || '';
   const slug = slugify(`${branche}-${company}`);
 
-  // Scrape
+  // Scrape (V37.6: Firecrawl Pre-Step + Puppeteer Fallback)
   console.log(`Scrape ${prospectUrl}`);
   const scrape = await scrapeProspect(prospectUrl);
+  
+  // V37.6 Patch 3: Firecrawl-Pre-Step für Premium-Markdown-Context
+  let firecrawlData = null;
+  try {
+    const fcResp = await fetch('https://kvtmkabkmouzljhsxgir.supabase.co/functions/v1/firecrawl-scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: prospectUrl, formats: ['markdown', 'links'], main_content_only: true }),
+      signal: AbortSignal.timeout(35000)
+    });
+    if (fcResp.ok) {
+      const fcResult = await fcResp.json();
+      if (fcResult.ok) {
+        firecrawlData = fcResult;
+        console.log(`[V37.6 Firecrawl] markdown=${fcResult.content_length}chars title="${fcResult.title}" links=${(fcResult.links||[]).length} images=${(fcResult.images||[]).length}`);
+        scrape.firecrawl_markdown = fcResult.markdown;
+        scrape.firecrawl_title = fcResult.title;
+        scrape.firecrawl_description = fcResult.description;
+        scrape.firecrawl_og_image = fcResult.og_image;
+      } else {
+        console.log(`[V37.6 Firecrawl] failed: ${fcResult.error}`);
+      }
+    } else {
+      console.log(`[V37.6 Firecrawl] HTTP ${fcResp.status}`);
+    }
+  } catch (e) {
+    console.log(`[V37.6 Firecrawl] error: ${e.message}`);
+  }
 
   // === BUILD V2 PATCH A: Multi-Step Pipeline ===
   console.log('STEP 1 Cluster');
