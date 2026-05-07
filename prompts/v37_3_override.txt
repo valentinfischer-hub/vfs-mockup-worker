@@ -1,0 +1,64 @@
+V37.3 OVERRIDE BLOCK (PFLICHT, ueberschreibt V37.2 bei Konflikt) — added 2026-05-07
+=================================================================================
+
+UMLAUT-HARTE-REGEL (ueberschreibt alles): Echte ä, ö, ü und ss IMMER. NIE ae/oe/ue im Body. Erlaubt NUR in URLs/href/src/Slugs/Filenames/Email-Adressen. Vor-Output-Self-Check Pflicht: zaehle ä/ö/ü, zaehle ae/oe/ue ausserhalb URLs. Wenn ae/oe/ue > 0 ausserhalb URLs: regeneriere bis 0.
+
+VORSCHAU-BANNER PFLICHT (neue Sektion #1, 32px hoch, schwarz BG #000, weiss Text, position:sticky top:0 z-index:9999, vor Nav und allem anderen):
+<div style="position:sticky;top:0;z-index:9999;background:#000;color:#fff;text-align:center;padding:8px;font-size:13px;height:32px;line-height:16px">VORSCHAU · Design-Entwurf von vf-services fuer ${COMPANY_NAME} · Finale Inhalte, Bilder & Konfiguration im Go-Live</div>
+
+KONZEPT-Badge Header rechts oben (zusaetzlich zur Nav): "KONZEPT-VORSCHAU · Echte Version in 36h nach Termin"
+
+VF-SERVICES.CH-FOOTER-CTA-FARB-TOKENS PFLICHT im finalen Termin-CTA-Footer-Block:
+--vfs-bg: #FAFAF7
+--vfs-text: #0A0A0A
+--vfs-accent: #EA6A2A
+--vfs-accent-text: #FFFFFF
+Pill-Button "Termin buchen": border-radius:9999px, padding:14px 28px, background:#EA6A2A, color:white, font-weight:600, kein Border.
+
+MOBILE STICKY BOTTOM-BAR PFLICHT bei <768px (verschaerft V36.5 STICKY_CTA_MOBILE): fixe 64px-Bar unten, 2 Buttons links "Anrufen" tel:LEAD_PHONE rechts "Termin buchen" Calendly. Background #EA6A2A, color white. padding-bottom:env(safe-area-inset-bottom). z-index:9999.
+
+LIVE-SLOT-PREVIEW PFLICHT im Hero + Footer-CTA: 3 Pill-Buttons mit synthetischen naechstverfuegbaren Slots:
+- "Mi 14.05. 14:00", "Do 15.05. 09:30", "Fr 16.05. 16:00"
+Klick -> calendly.com/valentin-fischer-vf-services/30min mit pre-selected Datum.
+
+LEAD-CAPTURE-MINI-FORM PFLICHT im Footer-CTA unter Calendly-Embed:
+Title "Keine Zeit fuer Termin? Senden Sie uns 1 Frage." + pre-filled Email-Field (LEAD_EMAIL) + Textarea 3 Zeilen + Submit-Button.
+POST zu https://kvtmkabkmouzljhsxgir.supabase.co/functions/v1/lead-capture-form
+Content-Type: application/json
+Body: {"email":"...","question":"...","source_mockup_url":"...","source_company":"...","source_branche":"..."}
+Onsuccess: Thank-You-State.
+
+CURIOSITY-3-CARDS "Im Termin ergaenzen wir gemeinsam" PFLICHT VOR Calendly-Embed:
+1. "Ihre Top-3 Leistungen mit echten Preisen"
+2. "Foto-Material aus Ihrem Praxisalltag"
+3. "Ihre individuellen Werte"
+
+PROCESS-TIMELINE 4-STEPS PFLICHT zwischen Reviews und Footer-CTA:
+1. "30-Min-Termin via Calendly"
+2. "36h Mockup-V2 mit Ihren Inhalten"
+3. "7 Tage Live-Schaltung"
+4. "Laufende Optimierung"
+
+SCHWEIZER-STADT-MICROCOPY PFLICHT: ${LEAD_CITY} in mind. 4 Stellen erwaehnen (Hero-Subtitle, Standort, Testimonial, Footer-CTA).
+
+BRANCHE-PAIN-STORY PFLICHT im Hero-Subtitle (statt generisch):
+- physio: "Damit Erstanfragen nicht mehr zwischen Telefonen verloren gehen"
+- coiffeur: "Damit Walk-Ins nicht mehr an Konkurrenz mit Online-Buchung gehen"
+- schreiner: "Damit Auftraege nicht an unsichtbarere Mitbewerber verloren gehen"
+- treuhand: "Damit Sie nicht mehr 5x am Tag dieselben Tarif-Fragen am Telefon beantworten muessen"
+- restaurant: "Damit Reservationen nicht mehr nur per Telefon kommen"
+- anwalt: "Damit Erstmandate nicht an Kanzleien mit besserer Online-Praesenz gehen"
+- architekt: "Damit Bauherren Ihre Projekte schon mobil ueberzeugend sehen"
+
+7-PFLICHT-SEKTIONEN (verkuerzt von V37.2 9-Sektionen, ENTFERNT Werte/Geschichte/Vision/Newsletter/Blog/FAQ/Pricing):
+1. VORSCHAU-Banner (NEU)
+2. Hero (90vh, mit Live-Slot-Preview)
+3. Leistungen (3-4 Cards)
+4. Praxis/Team-Kurz (Foto + 3-4 Saetze)
+5. Standort + Map
+6. Testimonials/Reviews (genau 2-6)
+7. Termin-CTA-Footer (Curiosity-3 + Process-Timeline + Inline-Calendly + Lead-Capture-Form + Mobile-Sticky-Bar)
+
+VERBOTEN ueber V37.2 hinaus: Werte-Sektion, Geschichte, Vision, Newsletter, Blog, FAQ, Pricing, Em-Dashes (—) im Body.
+
+STATUS V37.3: active 2026-05-07. Modell Opus 4.7 alle 4 Phasen. Cost-Cap 15 CHF/Mockup, avg 11.73 CHF.
