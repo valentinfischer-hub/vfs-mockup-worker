@@ -837,9 +837,9 @@ REGEL V40-M · SCROLL-MUSS-FUNKTIONIEREN (KRITISCH): Pre-Output Check: window.sc
 - KEIN body{overflow:hidden}, KEIN html{overflow:hidden}
 - KEIN scroll-snap-type ohne entsprechenden snap-align
 - KEIN preventDefault() in wheel/touchmove/scroll Listenern
-- Lenis-Init: NIEMALS mit `wrapper: document.documentElement` und gleichzeitig `content: document.body` ohne overflow:auto auf body. Wenn unsicher, Lenis weglassen.
+- Lenis-Init: NIEMALS mit "wrapper: document.documentElement" und gleichzeitig "content: document.body" ohne overflow:auto auf body. Wenn unsicher, Lenis weglassen.
 - KEIN data-lenis-prevent oder body[data-scroll]
-- Kein `position:fixed` auf body oder html
+- Kein "position:fixed" auf body oder html
 
 REGEL V40-N · STRICT 7 SECTIONS (KEINE BRIDGES als <section>): Quote-Bridges, Marquee-Ribbons, Stat-Bands, Vertical-Eyebrow-Streifen sind VISUELLE BRIDGES im flow zwischen den 7 Pflicht-Sections. Sie MÜSSEN in <div class="bridge-quote">, <div class="bridge-stats">, <div class="marquee-ribbon"> sein, NIEMALS als eigene <section>-Tags. Ich zähle nach Build die Anzahl <section>-Tags. Wenn > 7: Verstoss.
 ${auditBlock}
