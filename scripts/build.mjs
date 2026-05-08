@@ -842,6 +842,12 @@ REGEL V40-M · SCROLL-MUSS-FUNKTIONIEREN (KRITISCH): Pre-Output Check: window.sc
 - Kein "position:fixed" auf body oder html
 
 REGEL V40-N · STRICT 7 SECTIONS (KEINE BRIDGES als <section>): Quote-Bridges, Marquee-Ribbons, Stat-Bands, Vertical-Eyebrow-Streifen sind VISUELLE BRIDGES im flow zwischen den 7 Pflicht-Sections. Sie MÜSSEN in <div class="bridge-quote">, <div class="bridge-stats">, <div class="marquee-ribbon"> sein, NIEMALS als eigene <section>-Tags. Ich zähle nach Build die Anzahl <section>-Tags. Wenn > 7: Verstoss.
+
+REGEL V40-O · HERO-IMAGE MUSS AUTHENTIC SEIN: Wenn AUTHENTIC-Pool >= 1 Hero-Photo enthält, MUSS dieses Photo im Hero-<section class="hero"> als grosses Background- oder Foreground-Bild verwendet werden. Pexels-Bilder sind im Hero-Section verboten wenn AUTHENTIC vorhanden. Im V42.4 Run waren 8 Authentic-Photos im Pool, aber Hero zeigte ein Pexels-Hortensien-Bild — das ist ein Verstoss.
+
+REGEL V40-P · LOGO-NAV-SPACING: Header-Logo MUSS gap:2rem zur ersten Nav-Item haben. Im Header CSS: header { display:flex; align-items:center; justify-content:space-between; gap:2rem }. Nav-Items: nav { display:flex; gap:2rem }. Logo darf NIEMALS direkt am ersten Nav-Item kleben.
+
+REGEL V40-Q · LAZY-LOADING ALLER IMAGES (Performance): Alle <img>-Tags ausser Hero (above-fold) MÜSSEN loading="lazy" decoding="async" haben. Hero-Image (das EINE in der Hero-Section) hat fetchpriority="high" loading="eager".
 ${auditBlock}
 </v40_vfs_overlay>
 
