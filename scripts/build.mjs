@@ -1272,10 +1272,144 @@ function postProcessUrls(html, pool) {
   out = out.replace(/https?:\/\/images\.unsplash\.com\/[^"\s')]+/gi, () => { const p = pool[i % pool.length]; i++; return p.url; });
   return out;
 }
+// V42.2 Umlaut-Auto-Fix: deterministische Body-Text-Ersetzung mit Wörterbuch.
+// LLM ignoriert REGEL V40-E trotz expliziter Anweisung. Hard-Gate via Post-Processing.
+// Schließt URLs, href, src, data-*, CSS-Slugs, JS-Variablen aus.
+function fixUmlauts(html) {
+  if (typeof html !== 'string' || !html) return html;
+  // Wörterbuch: ae/oe/ue Pattern → echter Umlaut. Nur eindeutige deutsche Wörter.
+  const dict = {
+    // ue → ü
+    'fuer': 'für', 'ueber': 'über', 'Ueber': 'Über', 'ueberraschen': 'überraschen', 'Ueberraschung': 'Überraschung',
+    'moechte': 'möchte', 'moechten': 'möchten', 'moeglich': 'möglich', 'moeglichkeit': 'möglichkeit', 'Moeglichkeit': 'Möglichkeit',
+    'Kueche': 'Küche', 'kueche': 'küche', 'fruehst': 'frühst', 'fruehstueck': 'frühstück', 'Fruehstueck': 'Frühstück',
+    'gemuetlich': 'gemütlich', 'Gemuetlich': 'Gemütlich', 'kuerz': 'kürz', 'kuenftig': 'künftig',
+    'Tagesmenue': 'Tagesmenü', 'tagesmenue': 'tagesmenü', 'Menue': 'Menü', 'menue': 'menü',
+    'erfuellen': 'erfüllen', 'erfuellt': 'erfüllt', 'fuehlen': 'fühlen', 'fuehlt': 'fühlt', 'fuehrung': 'führung', 'Fuehrung': 'Führung',
+    'fuehrt': 'führt', 'fuehren': 'führen', 'einfuehrung': 'einführung', 'natuerlich': 'natürlich', 'Natuerlich': 'Natürlich',
+    'gruen': 'grün', 'Gruen': 'Grün', 'gruessen': 'grüssen', 'Gruessen': 'Grüssen', 'truebe': 'trübe',
+    'wuerze': 'würze', 'Wuerze': 'Würze', 'gewuerze': 'gewürze', 'Gewuerze': 'Gewürze', 'wuensche': 'wünsche', 'Wuensche': 'Wünsche',
+    'glueck': 'glück', 'Glueck': 'Glück', 'gluecklich': 'glücklich', 'pruefung': 'prüfung', 'Pruefung': 'Prüfung',
+    'erwuenscht': 'erwünscht', 'unerwuenscht': 'unerwünscht', 'guertel': 'gürtel', 'Guertel': 'Gürtel',
+    'wuerd': 'würd', 'wuerde': 'würde', 'wuerden': 'würden', 'wuerdig': 'würdig',
+    'spuer': 'spür', 'spueren': 'spüren', 'spuert': 'spürt', 'spuerbar': 'spürbar',
+    'kueh': 'küh', 'kuehl': 'kühl', 'kuehler': 'kühler', 'kuehne': 'kühne',
+    'huete': 'hüte', 'huette': 'hütte', 'Huette': 'Hütte', 'gluet': 'glüt',
+    'tuer': 'tür', 'Tuer': 'Tür', 'tueren': 'türen', 'Tueren': 'Türen',
+    'truem': 'trüm', 'fuehl': 'fühl', 'kueche': 'küche',
+    // oe → ö
+    'oeffnung': 'öffnung', 'Oeffnung': 'Öffnung', 'oeffnen': 'öffnen', 'oeffnungszeit': 'öffnungszeit', 'Oeffnungszeit': 'Öffnungszeit',
+    'gehoert': 'gehört', 'Gehoert': 'Gehört', 'gehoeren': 'gehören', 'gehoere': 'gehöre',
+    'koennen': 'können', 'Koennen': 'Können', 'koenne': 'könne', 'koennt': 'könnt', 'koennten': 'könnten', 'gekoennen': 'gekönnen',
+    'froehlich': 'fröhlich', 'Froehlich': 'Fröhlich', 'schoen': 'schön', 'Schoen': 'Schön', 'schoene': 'schöne', 'schoener': 'schöner', 'schoenste': 'schönste',
+    'froeh': 'fröh', 'Froeh': 'Fröh', 'oert': 'ört', 'oertlich': 'örtlich', 'oerter': 'örter',
+    'hoehepunkt': 'höhepunkt', 'Hoehepunkt': 'Höhepunkt', 'hoechst': 'höchst', 'Hoechst': 'Höchst', 'hoehe': 'höhe', 'Hoehe': 'Höhe',
+    'roem': 'röm', 'Roem': 'Röm', 'goet': 'göt', 'goetter': 'götter', 'Goetter': 'Götter', 'goettlich': 'göttlich',
+    'loesch': 'lösch', 'loeschen': 'löschen', 'Loeschen': 'Löschen', 'loeschung': 'löschung',
+    'loeben': 'löben', 'loeb': 'löb', 'voel': 'völ', 'voellig': 'völlig', 'Voellig': 'Völlig',
+    // ae → ä
+    'spaet': 'spät', 'Spaet': 'Spät', 'spaeter': 'später', 'verspaet': 'verspät',
+    'staerk': 'stärk', 'Staerk': 'Stärk', 'staerke': 'stärke', 'staerker': 'stärker', 'verstaerk': 'verstärk',
+    'baerlauch': 'bärlauch', 'Baerlauch': 'Bärlauch', 'baer': 'bär', 'Baer': 'Bär',
+    'aenderung': 'änderung', 'Aenderung': 'Änderung', 'aendern': 'ändern', 'geaendert': 'geändert',
+    'raeum': 'räum', 'Raeume': 'Räume', 'raeume': 'räume', 'aerztlich': 'ärztlich', 'Aerzt': 'Ärzt',
+    'erstgespraech': 'erstgespräch', 'Erstgespraech': 'Erstgespräch', 'gespraech': 'gespräch', 'Gespraech': 'Gespräch',
+    'naehe': 'nähe', 'Naehe': 'Nähe', 'naechst': 'nächst', 'Naechst': 'Nächst', 'naehrt': 'nährt',
+    'waeh': 'wäh', 'Waeh': 'Wäh', 'waehlen': 'wählen', 'waehlt': 'wählt', 'gewaehlt': 'gewählt', 'auswahl': 'auswahl',
+    'haengt': 'hängt', 'Haengt': 'Hängt', 'haengen': 'hängen', 'gehaengt': 'gehängt', 'aufhaengen': 'aufhängen',
+    'laenge': 'länge', 'Laenge': 'Länge', 'laenger': 'länger', 'verlaengern': 'verlängern',
+    'erklaer': 'erklär', 'Erklaer': 'Erklär', 'erklaert': 'erklärt', 'erklaerung': 'erklärung',
+    'aerger': 'ärger', 'Aerger': 'Ärger', 'aergerlich': 'ärgerlich',
+    'taeglich': 'täglich', 'Taeglich': 'Täglich', 'taglich': 'täglich',
+    'maerk': 'märk', 'Maerk': 'Märk', 'gemaess': 'gemäss', 'Gemaess': 'Gemäss', 'maess': 'mäss',
+    'naemlich': 'nämlich', 'Naemlich': 'Nämlich', 'naehe': 'nähe',
+    'gefaess': 'gefäss', 'Gefaess': 'Gefäss', 'maennchen': 'männchen', 'maenner': 'männer',
+    // ss / ß
+    'fuess': 'füss', 'gross': 'gross', // Schweiz: kein ß
+    // Compound common
+    'oeffentlich': 'öffentlich', 'Oeffentlich': 'Öffentlich', 'unmoeglich': 'unmöglich', 'unmoeglichkeit': 'unmöglichkeit',
+    'oekonom': 'ökonom', 'Oekonom': 'Ökonom', 'oekologie': 'ökologie', 'Oekologie': 'Ökologie',
+    'aestethisch': 'ästhetisch', 'Aestethisch': 'Ästhetisch', 'aesthetik': 'ästhetik', 'Aesthetik': 'Ästhetik',
+    'gefuehl': 'gefühl', 'Gefuehl': 'Gefühl', 'verstaendnis': 'verständnis', 'Verstaendnis': 'Verständnis',
+    'beruehmt': 'berühmt', 'Beruehmt': 'Berühmt', 'beruehrt': 'berührt', 'beruehren': 'berühren',
+    // V42.2 Erweiterung: Hospitality / Branche-Vokabular
+    'Spaetzli': 'Spätzli', 'spaetzli': 'spätzli', 'kaese': 'käse', 'Kaese': 'Käse', 'kaesefondue': 'käsefondue',
+    'atmosphaere': 'atmosphäre', 'Atmosphaere': 'Atmosphäre', 'gemuetlicher': 'gemütlicher', 'gemuetliche': 'gemütliche', 'gemuetlichen': 'gemütlichen', 'gemuetlichkeit': 'gemütlichkeit', 'Gemuetlichkeit': 'Gemütlichkeit',
+    'fruehstuecks': 'frühstücks', 'Fruehstuecks': 'Frühstücks', 'fruehstueck': 'frühstück',
+    'koestlich': 'köstlich', 'Koestlich': 'Köstlich', 'koestliche': 'köstliche', 'koestliches': 'köstliches',
+    'kuechenchef': 'küchenchef', 'Kuechenchef': 'Küchenchef', 'kuechen': 'küchen',
+    'Hoehenrest': 'Höhenrest', 'hoehenrest': 'höhenrest', 'roesti': 'rösti', 'Roesti': 'Rösti',
+    'gerichtsuebersicht': 'gerichtsübersicht', 'gerichteuebersicht': 'gerichtsübersicht',
+    'getraenk': 'getränk', 'Getraenk': 'Getränk', 'getraenke': 'getränke', 'Getraenke': 'Getränke',
+    'speisekarten': 'speisekarten', 'Speisekarten': 'Speisekarten',
+    'einlaedt': 'einlädt', 'einlaedung': 'einladung', 'Einlaedung': 'Einladung', 'einladung': 'einladung',
+    'sommersonne': 'sommersonne', 'sonnenmensch': 'sonnenmensch',
+    'guenstig': 'günstig', 'Guenstig': 'Günstig', 'guenstige': 'günstige', 'guenstiger': 'günstiger',
+    'beruehmtest': 'berühmtest', 'beruehmtesten': 'berühmtesten',
+    'feuerwerk': 'feuerwerk', 'Feuerwerk': 'Feuerwerk',
+    'sueden': 'süden', 'Sueden': 'Süden', 'norden': 'norden', 'osten': 'osten', 'westen': 'westen',
+    'wuenschen': 'wünschen', 'Wuenschen': 'Wünschen', 'wuenscht': 'wünscht', 'wuenschte': 'wünschte',
+    'puenkt': 'pünkt', 'puenktlich': 'pünktlich', 'Puenktlich': 'Pünktlich',
+    'praesent': 'präsent', 'Praesent': 'Präsent', 'praesentation': 'präsentation', 'Praesentation': 'Präsentation', 'praesentiert': 'präsentiert',
+    'praezise': 'präzise', 'Praezise': 'Präzise', 'praeferenz': 'präferenz', 'Praeferenz': 'Präferenz',
+    'angenaehrt': 'angenährt', 'naehrlich': 'nährlich', 'naehrwert': 'nährwert', 'Naehrwert': 'Nährwert',
+    'zaehl': 'zähl', 'Zaehl': 'Zähl', 'zaehlen': 'zählen', 'gezaehlt': 'gezählt',
+    'maech': 'mäch', 'Maech': 'Mäch', 'maechtig': 'mächtig',
+    'qualitaet': 'qualität', 'Qualitaet': 'Qualität', 'qualitaetsvoll': 'qualitätsvoll',
+    'aktivitaet': 'aktivität', 'Aktivitaet': 'Aktivität', 'aktivitaeten': 'aktivitäten',
+    'realitaet': 'realität', 'Realitaet': 'Realität', 'identitaet': 'identität', 'Identitaet': 'Identität',
+    'mentalitaet': 'mentalität', 'Mentalitaet': 'Mentalität', 'spezialitaet': 'spezialität', 'Spezialitaet': 'Spezialität',
+    'nachhaltig': 'nachhaltig', 'gepraegt': 'geprägt', 'praegt': 'prägt', 'praegen': 'prägen',
+    'verfuehrt': 'verführt', 'Verfuehrt': 'Verführt', 'verfuehren': 'verführen', 'verfuehrung': 'verführung'
+  };
+  // V42.2: Schütze NUR Skript/Style + Attribut-WERTE (nicht ganze Tags)
+  const protectedRanges = [];
+  // <script>, <style>, <head>, HTML-Comments — komplett geschützt
+  const protectedRx = /<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->|<head[\s\S]*?<\/head>/gi;
+  let m;
+  while ((m = protectedRx.exec(html)) !== null) {
+    protectedRanges.push([m.index, m.index + m[0].length]);
+  }
+  // Attribut-WERTE (nur die Werte selbst, nicht die ganzen Tags) - so bleiben <a>...</a> Texte ersetzbar
+  const attrValRx = /\s(href|src|action|data-[a-z-]+|style|class|id|name|alt|title|placeholder|aria-label)\s*=\s*("([^"]*)"|'([^']*)')/gi;
+  while ((m = attrValRx.exec(html)) !== null) {
+    // Schütze nur die Wert-Range (zwischen den Quotes)
+    const fullMatch = m[0];
+    const valStart = m.index + fullMatch.indexOf('"') !== -1 ? m.index + fullMatch.indexOf('"') + 1 : m.index + fullMatch.indexOf("'") + 1;
+    const valEnd = m.index + fullMatch.length - 1;
+    if (valStart > 0 && valEnd > valStart) {
+      protectedRanges.push([valStart, valEnd]);
+    }
+  }
+  protectedRanges.sort((a, b) => a[0] - b[0]);
+  function isProtected(idx) {
+    for (const [s, e] of protectedRanges) {
+      if (idx >= s && idx < e) return true;
+      if (idx < s) return false;
+    }
+    return false;
+  }
+  let result = html;
+  let changes = 0;
+  // Wörterbuch-Replacement: case-sensitive, word-boundary
+  for (const [bad, good] of Object.entries(dict)) {
+    const rx = new RegExp('\\b' + bad.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g');
+    result = result.replace(rx, (match, offset) => {
+      if (isProtected(offset)) return match;
+      changes++;
+      return good;
+    });
+  }
+  if (changes > 0) console.log('[V42.2 fixUmlauts] replaced ' + changes + ' ae/oe/ue patterns with ä/ö/ü');
+  return result;
+}
+
 function stripCodeFence(s) {
   if (typeof s !== "string") return s;
   let out = s.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "").trim();
   if (out.startsWith("<!DOCTYPE") || out.startsWith("<html")) {
+    // V42.2: Umlaut-Auto-Fix als HARD-GATE bevor andere post-processing
+    out = fixUmlauts(out);
     // Auto-replace halucinated unsplash with pexels pool
     if (globalThis.__VFS_PEXELS_POOL && globalThis.__VFS_PEXELS_POOL.length) {
       out = postProcessUrls(out, globalThis.__VFS_PEXELS_POOL);
