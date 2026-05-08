@@ -1496,7 +1496,11 @@ function injectLazyLoading(html) {
 function stripCodeFence(s) {
   if (typeof s !== "string") return s;
   let out = s.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "").trim();
-  if (out.startsWith("<!DOCTYPE") || out.startsWith("<html")) {
+  // V42.7: Watchdog-Patches unconditional aufrufen wenn HTML-like (>1000 chars und enthält <section> oder <body> oder <head>)
+  // Bug-Fix: V42.6 hatte den DOCTYPE-Check der capSections/injectLazy übersprungen wenn LLM ohne DOCTYPE startet
+  const looksLikeHtml = (out.length > 1000) && (/<section\b|<body\b|<head\b|<header\b|<main\b/i.test(out));
+  if (out.startsWith("<!DOCTYPE") || out.startsWith("<html") || looksLikeHtml) {
+    console.log('[V42.7 stripCodeFence] running watchdogs (DOCTYPE=' + out.startsWith('<!DOCTYPE') + ', html=' + out.startsWith('<html') + ', looksLikeHtml=' + looksLikeHtml + ', len=' + out.length + ')');
     // V42.2: Umlaut-Auto-Fix als HARD-GATE bevor andere post-processing
     out = fixUmlauts(out);
     // V42.6: Section-Hard-Cap (max 7, Cluster-Whitelist)
