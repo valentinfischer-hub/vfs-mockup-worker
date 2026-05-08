@@ -1434,12 +1434,76 @@ function fixUmlauts(html) {
   return result;
 }
 
+// V42.6 Section-Cap-Watchdog: cluster-spezifische Whitelist + Hard-Cap auf 7
+function capSections(html, clusterKey) {
+  if (typeof html !== 'string') return html;
+  const sectionRx = /<section[\s\S]*?<\/section>/gi;
+  const matches = html.match(sectionRx) || [];
+  if (matches.length <= 7) return html;
+  // Cluster-Whitelist (Section-Class-Pattern)
+  const whitelistMap = {
+    'A': ['hero', 'manifest', 'story', 'portfolio', 'werk', 'process', 'material', 'team', 'standort', 'kontakt'],
+    'B': ['hero', 'story', 'menu', 'karte', 'reservation', 'reservier', 'gallery', 'galerie', 'location', 'standort'],
+    'C': ['hero', 'manifest', 'story', 'kollektion', 'material', 'craft', 'showroom', 'standort', 'kontakt'],
+    'D': ['hero', 'ueber', 'leistung', 'service', 'termin', 'review', 'kontakt', 'standort'],
+    'E': ['hero', 'therapie', 'behandlung', 'leistung', 'termin', 'team', 'standort'],
+    'F': ['hero', 'trust', 'story', 'leistung', 'termin', 'gallery', 'standort'],
+    'G': ['hero', 'manifest', 'service', 'capabilities', 'cases', 'portfolio', 'team', 'kontakt']
+  };
+  const wl = whitelistMap[clusterKey] || whitelistMap['F'];
+  // Score jede Section: Match auf Whitelist = high score, sonst low
+  const scored = matches.map((sec, idx) => {
+    const lower = sec.toLowerCase().substring(0, 200);
+    let score = 0;
+    for (let i = 0; i < wl.length; i++) {
+      if (lower.includes(wl[i])) { score = 100 - i; break; }
+    }
+    return { sec, score, idx };
+  });
+  // Sortiere nach Score desc, behalte top 7 (Original-Reihenfolge wieder)
+  const keepIdx = new Set(scored.sort((a, b) => b.score - a.score).slice(0, 7).map(x => x.idx));
+  let out = html;
+  let removed = 0;
+  // Entferne nicht-keep Sections
+  for (let i = matches.length - 1; i >= 0; i--) {
+    if (!keepIdx.has(i)) {
+      out = out.replace(matches[i], '<!-- V42.6 section removed (over cap) -->');
+      removed++;
+    }
+  }
+  console.log(`[V42.6 capSections] cluster=${clusterKey} removed=${removed} kept=${matches.length - removed}`);
+  return out;
+}
+
+// V42.6 Image-Lazy: alle non-hero img mit loading=lazy + decoding=async
+function injectLazyLoading(html) {
+  if (typeof html !== 'string') return html;
+  // Find Hero-Section-Boundaries
+  const heroMatch = html.match(/<section[^>]*class="[^"]*hero[^"]*"[^>]*>[\s\S]*?<\/section>/i);
+  const heroStart = heroMatch ? html.indexOf(heroMatch[0]) : -1;
+  const heroEnd = heroMatch ? heroStart + heroMatch[0].length : -1;
+  let added = 0;
+  const out = html.replace(/<img\b((?:[^>]|>(?!\/img))*?)>/gi, (m, attrs, offset) => {
+    if (heroStart >= 0 && offset >= heroStart && offset < heroEnd) return m; // hero img unverändert
+    if (/loading\s*=/.test(attrs)) return m; // schon gesetzt
+    added++;
+    return '<img loading="lazy" decoding="async"' + attrs + '>';
+  });
+  if (added > 0) console.log(`[V42.6 injectLazy] added loading=lazy to ${added} non-hero img`);
+  return out;
+}
+
 function stripCodeFence(s) {
   if (typeof s !== "string") return s;
   let out = s.replace(/^```(?:[a-zA-Z]+)?\s*\n?/, "").replace(/\n?\s*```\s*$/, "").trim();
   if (out.startsWith("<!DOCTYPE") || out.startsWith("<html")) {
     // V42.2: Umlaut-Auto-Fix als HARD-GATE bevor andere post-processing
     out = fixUmlauts(out);
+    // V42.6: Section-Hard-Cap (max 7, Cluster-Whitelist)
+    var clusterKey = (globalThis.__VFS_CLUSTER || 'F').toString().toUpperCase().match(/^[A-G]/);
+    out = capSections(out, clusterKey ? clusterKey[0] : 'F');
+    // V42.6: Lazy-Loading auf alle non-hero img
+    out = injectLazyLoading(out);
     // Auto-replace halucinated unsplash with pexels pool
     if (globalThis.__VFS_PEXELS_POOL && globalThis.__VFS_PEXELS_POOL.length) {
       out = postProcessUrls(out, globalThis.__VFS_PEXELS_POOL);
@@ -1449,7 +1513,7 @@ function stripCodeFence(s) {
     // IntersectionObserver-Watchdog injizieren
     if (out.includes("</body>") && !out.includes("__VFS_FADE_WATCHDOG__")) {
       // V42.3 HEADER-FORCE: Header darf max 100px + sticky, Hero im Header wird auto-released (REGEL V40-K)
-      const wd = '<style id="__VFS_HEADER_FORCE__">header, .header, .site-header { position: sticky !important; top: 0 !important; z-index: 1000 !important; max-height: 100px !important; height: auto !important; min-height: auto !important; background: var(--header-bg, var(--bg, var(--vfs-offwhite, #FAFAF7))) !important; backdrop-filter: blur(8px); overflow: visible !important; } header, .header, nav.main-nav, .navbar { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 2rem; padding-inline: 1.5rem; padding-block: 1rem; } header > *:first-child, .header > *:first-child { flex-shrink: 0; } /* V42.3 Hero-Tag-Force: wenn Hero versehentlich im Header, muss es dennoch funktional bleiben */ header section.hero, header .hero, header [class*="hero"] { position: static !important; height: auto !important; } html, body { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; } body { scroll-snap-type: none !important; } @media (max-width: 768px) { header nav, .header nav, .navbar nav { display: none !important; } header .menu-toggle, .header .menu-toggle, .hamburger { display: inline-flex !important; } } [style*="opacity:0"], [style*="opacity: 0"] { opacity: 1 !important; transform: none !important; }<\/style><script id="__VFS_FADE_WATCHDOG__">(function(){function reveal(){var els=document.querySelectorAll("*");var fixed=0;for(var i=0;i<els.length;i++){var e=els[i];if(["SCRIPT","STYLE","LINK","META","HEAD","TITLE","NOSCRIPT"].indexOf(e.tagName)>-1)continue;var s=getComputedStyle(e);if(parseFloat(s.opacity)<0.1){e.style.setProperty("opacity","1","important");e.style.setProperty("transform","none","important");e.style.setProperty("visibility","visible","important");e.style.setProperty("transition","opacity 0.4s ease, transform 0.4s ease","important");fixed++;}}console.log("[VFS Watchdog] revealed",fixed,"hidden elements");}setTimeout(reveal,1200);setTimeout(reveal,3000);/* V42.3 Header-Hero-Detector: wenn header > 200px hoch, force position:relative + extract hero */setTimeout(function(){var hdr=document.querySelector("header,.header,.site-header");if(hdr&&hdr.offsetHeight>200){console.log("[VFS Watchdog] header height "+hdr.offsetHeight+"px > 200px, forcing relative");hdr.style.setProperty("position","relative","important");hdr.style.setProperty("max-height","none","important");}},500);/* V42.4 SCROLL-RESCUE: alle preventDefault scroll-blocker entfernen */(function(){var origAdd=EventTarget.prototype.addEventListener;EventTarget.prototype.addEventListener=function(type,fn,opts){if(["wheel","touchmove","scroll","mousewheel","DOMMouseScroll"].indexOf(type)>-1){var wrapped=function(e){try{var r=fn.apply(this,arguments);return r;}catch(_){}};return origAdd.call(this,type,wrapped,Object.assign({},opts||{},{passive:true}));}return origAdd.apply(this,arguments);};/* Lenis stoppen wenn aktiv */setTimeout(function(){if(window.lenis&&typeof window.lenis.destroy==="function"){window.lenis.destroy();console.log("[VFS Watchdog] Lenis destroyed (scroll-rescue)");}document.documentElement.style.setProperty("overflow-y","auto","important");document.body.style.setProperty("overflow-y","auto","important");document.documentElement.style.setProperty("scroll-behavior","auto","important");/* test */var sy0=window.scrollY;window.scrollTo(0,100);setTimeout(function(){if(window.scrollY===sy0){console.warn("[VFS Watchdog] scroll still blocked, forcing position:static on html/body");document.documentElement.style.setProperty("position","static","important");document.body.style.setProperty("position","static","important");document.body.style.setProperty("height","auto","important");}window.scrollTo(0,sy0);},100);},800);})();})();<\/script>';
+      const wd = '<style id="__VFS_HEADER_FORCE__">header, .header, .site-header { position: sticky !important; top: 0 !important; z-index: 1000 !important; max-height: 100px !important; height: auto !important; min-height: auto !important; background: var(--header-bg, var(--bg, var(--vfs-offwhite, #FAFAF7))) !important; backdrop-filter: blur(8px); overflow: visible !important; } header, .header, nav.main-nav, .navbar { display: flex !important; align-items: center !important; justify-content: space-between !important; gap: 3rem !important; padding-inline: 1.5rem; padding-block: 1rem; } header > a:first-child, header .logo, header .brand { margin-right: 3rem !important; padding-right: 1rem !important; } header nav, header ul, .header nav, .header ul { gap: 2rem !important; display: flex !important; } header > *:first-child, .header > *:first-child { flex-shrink: 0; } /* V42.3 Hero-Tag-Force: wenn Hero versehentlich im Header, muss es dennoch funktional bleiben */ header section.hero, header .hero, header [class*="hero"] { position: static !important; height: auto !important; } html, body { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; } body { scroll-snap-type: none !important; } @media (max-width: 768px) { header nav, .header nav, .navbar nav { display: none !important; } header .menu-toggle, .header .menu-toggle, .hamburger { display: inline-flex !important; } } [style*="opacity:0"], [style*="opacity: 0"] { opacity: 1 !important; transform: none !important; }<\/style><script id="__VFS_FADE_WATCHDOG__">(function(){function reveal(){var els=document.querySelectorAll("*");var fixed=0;for(var i=0;i<els.length;i++){var e=els[i];if(["SCRIPT","STYLE","LINK","META","HEAD","TITLE","NOSCRIPT"].indexOf(e.tagName)>-1)continue;var s=getComputedStyle(e);if(parseFloat(s.opacity)<0.1){e.style.setProperty("opacity","1","important");e.style.setProperty("transform","none","important");e.style.setProperty("visibility","visible","important");e.style.setProperty("transition","opacity 0.4s ease, transform 0.4s ease","important");fixed++;}}console.log("[VFS Watchdog] revealed",fixed,"hidden elements");}setTimeout(reveal,1200);setTimeout(reveal,3000);/* V42.3 Header-Hero-Detector: wenn header > 200px hoch, force position:relative + extract hero */setTimeout(function(){var hdr=document.querySelector("header,.header,.site-header");if(hdr&&hdr.offsetHeight>200){console.log("[VFS Watchdog] header height "+hdr.offsetHeight+"px > 200px, forcing relative");hdr.style.setProperty("position","relative","important");hdr.style.setProperty("max-height","none","important");}},500);/* V42.4 SCROLL-RESCUE: alle preventDefault scroll-blocker entfernen */(function(){var origAdd=EventTarget.prototype.addEventListener;EventTarget.prototype.addEventListener=function(type,fn,opts){if(["wheel","touchmove","scroll","mousewheel","DOMMouseScroll"].indexOf(type)>-1){var wrapped=function(e){try{var r=fn.apply(this,arguments);return r;}catch(_){}};return origAdd.call(this,type,wrapped,Object.assign({},opts||{},{passive:true}));}return origAdd.apply(this,arguments);};/* Lenis stoppen wenn aktiv */setTimeout(function(){if(window.lenis&&typeof window.lenis.destroy==="function"){window.lenis.destroy();console.log("[VFS Watchdog] Lenis destroyed (scroll-rescue)");}document.documentElement.style.setProperty("overflow-y","auto","important");document.body.style.setProperty("overflow-y","auto","important");document.documentElement.style.setProperty("scroll-behavior","auto","important");/* test */var sy0=window.scrollY;window.scrollTo(0,100);setTimeout(function(){if(window.scrollY===sy0){console.warn("[VFS Watchdog] scroll still blocked, forcing position:static on html/body");document.documentElement.style.setProperty("position","static","important");document.body.style.setProperty("position","static","important");document.body.style.setProperty("height","auto","important");}window.scrollTo(0,sy0);},100);},800);})();})();<\/script>';
       out = out.replace("</body>", wd + "</body>");
     }
   }
