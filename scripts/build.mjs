@@ -703,8 +703,73 @@ Pures HTML ab <!DOCTYPE html>. Keine Erklaerungen. Keine Code-Fences. Keine Komm
 // Eliminiert Layer-Sandwich (Override + V37-Body + V3.4-Append) der Konflikte erzeugte.
 function buildV40SystemPrompt(profile, mockupId, supabaseUrl, prospectAudit, v34spec, v40_assets, prospect) {
   const company = (prospect && prospect.company) || profile.company || profile.firma || 'das Unternehmen';
+  const branche = (prospect && prospect.branche) || 'Dienstleistung';
   const auditBlock = prospectAudit ? ('\n<prospect_audit>\nWeak-Points: ' + (prospectAudit.weak_points || []).slice(0, 3).join(' | ') + '\nMUSS exzellent: ' + (prospectAudit.must_excel || []).slice(0, 3).join(' | ') + '\nKey-Messages: ' + (prospectAudit.key_messages || []).slice(0, 3).join(' | ') + '\n</prospect_audit>\n') : '';
-  return v34spec + `
+
+  // === V42.1 SDK-BYPASS: Authentic-Pool + Stock-Pool direkt im Prompt einbauen ===
+  // (Monkey-Patch auf fetch greift nicht, weil Anthropic-SDK undici nutzt)
+  const authPool = (typeof globalThis !== 'undefined' && Array.isArray(globalThis.__VFS_AUTHENTIC_POOL)) ? globalThis.__VFS_AUTHENTIC_POOL : [];
+  const stockPool = (typeof globalThis !== 'undefined' && Array.isArray(globalThis.__VFS_PEXELS_POOL)) ? globalThis.__VFS_PEXELS_POOL : [];
+  const aiPool = (typeof globalThis !== 'undefined' && Array.isArray(globalThis.__VFS_AI_POOL)) ? globalThis.__VFS_AI_POOL : [];
+  const logo = (typeof globalThis !== 'undefined' && globalThis.__VFS_LOGO) ? globalThis.__VFS_LOGO : null;
+
+  const heroAuth = authPool.filter(x => x.role === 'hero');
+  const galleryAuth = authPool.filter(x => x.role === 'gallery');
+  const teamAuth = authPool.filter(x => x.role === 'team');
+  const genericAuth = authPool.filter(x => x.role === 'generic');
+  const heroOrGalleryCount = heroAuth.length + galleryAuth.length;
+
+  // V42.1 (a) Stock-Suppression: bei starkem Authentic-Pool kein Pexels mehr im Choice-Set
+  const suppressStock = heroOrGalleryCount >= 4;
+  const effectiveStock = suppressStock ? [] : stockPool;
+
+  // V42.1 (c) ABSOLUTE-IMAGE-RULE direkt in Prompt-Anfang als FIRST DIRECTIVE
+  let absoluteRule = '';
+  if (heroOrGalleryCount >= 1) {
+    absoluteRule = `<v42_absolute_image_rule>
+ABSOLUTE-IMAGE-RULE (BEFORE READING ANYTHING ELSE — überschreibt alle anderen Image-Anweisungen):
+
+Diese Webseite hat AUTHENTISCHE Lead-Fotos die im Mockup verwendet werden MÜSSEN.
+
+HERO-SECTION (Pflicht-Bild im Hero):
+${heroAuth.map(x => '- ' + x.url + ' (alt: ' + (x.alt || 'authentic photo') + ')').join('\n')}
+
+GALERIE-SECTION (Pflicht, mind. 4 Bilder):
+${galleryAuth.map(x => '- ' + x.url + ' (alt: ' + (x.alt || 'authentic photo') + ')').join('\n')}
+${genericAuth.length > 0 ? '\nWeitere echte Lead-Bilder (auch nutzbar in Galerie wenn obige <4):\n' + genericAuth.map(x => '- ' + x.url).join('\n') : ''}
+
+REGELN:
+1. Hero-Image MUSS aus obiger HERO-Liste kommen. NIEMALS Pexels im Hero.
+2. Galerie-Section MUSS mind. 4 obiger GALERIE/GENERIC URLs enthalten.
+3. Pexels NUR für Reviewer-Avatars und Service-Card-Detail-Shots wenn AUTHENTIC dafür nichts hat.
+4. Verstoesse fuehren zu Mockup-Reject. Diese Regel ueberschreibt alle anderen Image-Pool-Anweisungen.
+${suppressStock ? '5. Stock-Pool wurde GESPERRT weil Authentic-Pool >= 4 Hero/Gallery-Photos hat. KEINE Pexels-URLs verwenden ausser fuer Avatars.' : ''}
+</v42_absolute_image_rule>
+
+`;
+  }
+
+  // V42.1 (b) BILDER-POOLS-Block direkt im Prompt mit allen URLs
+  const branchePexelsHint = branche.toLowerCase().includes('gastronomie') ? 'Restaurant Interior, Hospitality Atmosphere, Swiss Bistro' : (branche.toLowerCase().includes('coiffeur') || branche.toLowerCase().includes('hair') ? 'Hair Salon Premium, Hair Detail' : (branche.toLowerCase().includes('physio') || branche.toLowerCase().includes('medizin') ? 'Therapy Hands Detail, Wellness Calm' : (branche.toLowerCase().includes('coach') || branche.toLowerCase().includes('beratung') ? 'Office Editorial, Consulting Detail' : 'Editorial Premium ' + branche)));
+
+  const bilderPoolBlock = `<bilder_pools>
+LOGO:${logo ? '\n- ' + logo.url + ' (source: ' + logo.source + ')' : '\n(kein Logo extrahiert, nutze Wordmark der Firma in Display-Font mit primary-Color)'}
+
+AUTHENTIC-POOL (PFLICHT zuerst nutzen, alle Cloudinary-wrapped):
+${authPool.length > 0 ? authPool.map(x => '- ' + x.url + ' [role:' + x.role + (x.alt ? ', alt:' + x.alt : '') + ']').join('\n') : '(leer)'}
+
+STOCK-POOL (Pexels, ${suppressStock ? 'GESPERRT — leer because Authentic stark' : 'branche-spezifisch: ' + branchePexelsHint}):
+${effectiveStock.length > 0 ? effectiveStock.slice(0, 12).map(u => '- ' + (typeof u === 'string' ? u : u.url || u)).join('\n') : '(leer)'}
+
+AI-GENERATED-POOL:
+${aiPool.length > 0 ? aiPool.map(x => '- ' + x.url + ' [role:' + (x.role || 'hero') + ']').join('\n') : '(leer)'}
+
+PRIORITAET-HIERARCHIE: AUTHENTIC > AI > STOCK. Verwende AUSSCHLIESSLICH URLs aus diesen Pools. KEINE Bild-URLs erfinden. KEINE images.unsplash.com.
+</bilder_pools>
+
+`;
+
+  return absoluteRule + bilderPoolBlock + v34spec + `
 
 <v40_vfs_overlay>
 Diese vfs-spezifischen Pflicht-Erweiterungen gelten ZUSÄTZLICH zur V3.4-Spec oben. Bei Konflikt zwischen V3.4-Spec und V40-Overlay dominiert V40-Overlay (vfs-Brand-Identitaet + Compliance + Authentic-Image-Rule sind nicht verhandelbar).
@@ -821,6 +886,12 @@ async function fetchPexelsPool(branche, cluster, count = 24) {
     "metallbau": "metalworker welder steel construction", "gartenbau": "landscape gardener garden",
     "bodenleger": "flooring installer parquet", "optiker": "optician eyewear store",
     "treuhand": "accountant office consulting", "anwalt": "lawyer office legal",
+    // V42.1: branche-spezifische queries fuer Hospitality/Beratung/Tech
+    "gastronomie": "restaurant interior cozy bistro warm light", "restaurant": "restaurant interior cozy bistro warm light",
+    "cafe": "cafe interior coffee atmosphere", "bar": "cocktail bar interior moody",
+    "hotel": "boutique hotel lobby interior", "wellness": "spa wellness treatment calm",
+    "beratung": "modern office consulting meeting", "coaching": "coaching session calm modern",
+    "tech": "tech studio editorial workspace", "agency": "creative agency interior",
     "default": "modern office swiss professional"
   };
   const queries = [];
